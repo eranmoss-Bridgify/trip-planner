@@ -1,32 +1,25 @@
 'use client';
 
-import { Hotel, Attraction } from '@/lib/mock-data';
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Star, Clock, MapPin, Check } from 'lucide-react';
-import { useState } from 'react';
-
+import { Star, Clock, MapPin } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useTrips } from '@/context/TripContext';
-import { ACTIVE_TRIP_ID } from '@/lib/mock-data';
 
 interface ServiceCardProps {
-    service: Hotel | Attraction;
+    service: any;
     type: 'Hotel' | 'Attraction';
     isInModal?: boolean;
     onCloseModal?: () => void;
-    currentLegId?: string; // Passed down if we know the leg
-    onOpenDetails?: (service: Hotel | Attraction, type: 'Hotel' | 'Attraction') => void;
+    currentLegId?: string;
+    onOpenDetails?: (service: any, type: 'Hotel' | 'Attraction') => void;
+    checkIn?: string;
+    checkOut?: string;
+    priceLoading?: boolean;
 }
 
-export function ServiceCard({ service, type, isInModal, onCloseModal, currentLegId, onOpenDetails }: ServiceCardProps) {
-    const [added, setAdded] = useState(false);
-    const { trips } = useTrips();
-
-    // Quick fallback for active leg if not provided
-    const trip = trips.find(t => t.id === ACTIVE_TRIP_ID) || trips[0];
-    const targetLegId = currentLegId || trip?.legs?.[0]?.id;
-
+export function ServiceCard({ service, type, isInModal, onCloseModal, currentLegId, onOpenDetails, checkIn, checkOut, priceLoading }: ServiceCardProps) {
     const handleCardClick = () => {
         if (onOpenDetails) {
             onOpenDetails(service, type);
@@ -34,72 +27,95 @@ export function ServiceCard({ service, type, isInModal, onCloseModal, currentLeg
     };
 
     const handleAddClick = (e: React.MouseEvent) => {
-        e.stopPropagation(); // prevent card click
+        e.stopPropagation();
         if (onOpenDetails) {
             onOpenDetails(service, type);
         }
     };
+
+    const isHotel = type === 'Hotel';
+    const hasPrice = service.price != null && service.price > 0;
 
     return (
         <Card
             className="overflow-hidden flex flex-col h-full hover:shadow-lg transition-all group cursor-pointer"
             onClick={handleCardClick}
         >
-            <div className="relative h-48 overflow-hidden">
-                <img
-                    src={service.image}
-                    alt={service.name}
-                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                />
+            <div className="relative h-48 overflow-hidden bg-muted">
+                {service.image ? (
+                    <img
+                        src={service.image}
+                        alt={service.name}
+                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
+                        No image
+                    </div>
+                )}
                 <Badge className="absolute top-2 right-2 bg-background/80 text-foreground backdrop-blur">
-                    {type === 'Hotel' ? 'Hotel' : (service as Attraction).category}
+                    {isHotel ? 'Hotel' : (service.category || 'Experience')}
                 </Badge>
+                {isHotel && service.starRating > 0 && (
+                    <div className="absolute top-2 left-2 flex gap-0.5">
+                        {Array.from({ length: service.starRating }).map((_, i) => (
+                            <Star key={i} className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                        ))}
+                    </div>
+                )}
             </div>
             <CardContent className="p-4 flex-1 space-y-2">
                 <div className="flex justify-between items-start">
                     <h3 className="font-bold text-lg line-clamp-1">{service.name}</h3>
-                    <div className="flex items-center gap-1 text-sm font-semibold">
-                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                        {service.rating}
-                    </div>
+                    {service.rating > 0 && (
+                        <div className="flex items-center gap-1 text-sm font-semibold shrink-0">
+                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                            {service.rating}
+                        </div>
+                    )}
                 </div>
 
-                {type === 'Hotel' && (service as Hotel).location && (
+                {service.location && (
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <MapPin className="h-3 w-3" />
-                        {(service as Hotel).location}
+                        {service.location}
                     </div>
                 )}
 
-                {(service as Attraction).duration && (
+                {!isHotel && service.duration && (
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Clock className="h-3 w-3" />
-                        {(service as Attraction).duration}
+                        {service.duration}
                     </div>
                 )}
 
                 <p className="text-sm text-muted-foreground line-clamp-2">
-                    {(service as Hotel).description || 'Experience the best of Paris with this curated selection.'}
+                    {service.description || 'Experience the best of your destination.'}
                 </p>
             </CardContent>
             <CardFooter className="p-4 pt-0 flex justify-between items-center mt-auto border-t bg-muted/20">
-                <div className="font-bold text-lg text-primary">
-                    {service.price} {service.currency}
+                <div>
+                    <div className="font-bold text-lg text-primary">
+                        {priceLoading ? (
+                            <Skeleton className="h-6 w-24" />
+                        ) : hasPrice ? (
+                            <>
+                                {service.price} {service.currency}
+                                {isHotel && <span className="text-xs font-normal text-muted-foreground"> / night</span>}
+                            </>
+                        ) : (
+                            <span className="text-sm text-muted-foreground font-normal">No availability</span>
+                        )}
+                    </div>
                 </div>
                 <Button
                     size="sm"
-                    variant={added ? "secondary" : "default"}
+                    variant="default"
                     onClick={handleAddClick}
-                    disabled={added}
                     className="transition-all"
                 >
-                    {added ? (
-                        <>
-                            <Check className="h-4 w-4 mr-1" /> Added
-                        </>
-                    ) : (
-                        "View Details"
-                    )}
+                    View Details
                 </Button>
             </CardFooter>
         </Card>
