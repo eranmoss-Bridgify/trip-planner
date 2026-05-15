@@ -167,9 +167,14 @@ export function TripProvider({ children }: { children: ReactNode }) {
                         } else if (type === 'Attraction') {
                             if (leg.days && leg.days.length > 0) {
                                 const updatedDays = [...leg.days];
-                                updatedDays[0] = {
-                                    ...updatedDays[0],
-                                    activities: [...updatedDays[0].activities, { ...serviceInstance, date: updatedDays[0].date }]
+                                const selectedDate = serviceInstance.selectedDate;
+                                const targetIdx = selectedDate
+                                    ? updatedDays.findIndex(d => d.date === selectedDate)
+                                    : -1;
+                                const dayIdx = targetIdx >= 0 ? targetIdx : 0;
+                                updatedDays[dayIdx] = {
+                                    ...updatedDays[dayIdx],
+                                    activities: [...updatedDays[dayIdx].activities, { ...serviceInstance, date: updatedDays[dayIdx].date }]
                                 };
                                 return { ...leg, days: updatedDays };
                             }

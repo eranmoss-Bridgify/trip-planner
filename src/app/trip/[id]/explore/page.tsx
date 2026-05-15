@@ -1,15 +1,17 @@
 'use client';
 
-import { HOTELS, ATTRACTIONS, Hotel, Attraction } from '@/lib/mock-data';
 import { ServiceCard } from '@/components/demo/ServiceCard';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Filter, Search } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ArrowLeft, Search, AlertCircle, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { use, useState } from 'react';
 import { useTrips } from '@/context/TripContext';
 import { ServiceDetailsSidebar } from '@/components/demo/ServiceDetailsSidebar';
+import { useBridgifySearch } from '@/lib/api-client';
+import { bridgifyToAttraction } from '@/lib/bridgify-adapter';
+import type { Attraction } from '@/types/services';
 
 export default function ExplorePage({ params, searchParams }: {
     params: Promise<{ id: string }>,
@@ -21,16 +23,32 @@ export default function ExplorePage({ params, searchParams }: {
 
     const { trips } = useTrips();
     const trip = trips.find(t => t.id === id);
-    const leg = trip?.legs[0]; // fallback to first leg
+    const leg = trip?.legs[0];
+    const destination = leg?.location ?? 'Barcelona';
+
+    const [searchTerm, setSearchTerm] = useState('tours');
+    const [debouncedSearch, setDebouncedSearch] = useState('tours');
+
+    const { data, error, isLoading, mutate } = useBridgifySearch({
+        textSearch: debouncedSearch,
+        cityName: destination,
+        pageSize: 30,
+    });
+
+    const attractions: Attraction[] = (data?.attractions ?? []).map(bridgifyToAttraction);
 
     const [isServiceDetailsOpen, setIsServiceDetailsOpen] = useState(false);
-    const [selectedService, setSelectedService] = useState<Hotel | Attraction | null>(null);
-    const [selectedType, setSelectedType] = useState<'Hotel' | 'Attraction' | null>(null);
+    const [selectedService, setSelectedService] = useState<Attraction | null>(null);
 
-    const handleOpenDetails = (service: Hotel | Attraction, type: 'Hotel' | 'Attraction') => {
+    const handleOpenDetails = (service: any) => {
         setSelectedService(service);
-        setSelectedType(type);
         setIsServiceDetailsOpen(true);
+    };
+
+    const handleSearch = (value: string) => {
+        setSearchTerm(value);
+        clearTimeout((window as any).__exploreDebounce);
+        (window as any).__exploreDebounce = setTimeout(() => setDebouncedSearch(value), 300);
     };
 
     return (
@@ -42,7 +60,7 @@ export default function ExplorePage({ params, searchParams }: {
                     </Button>
                 </Link>
                 <div>
-                    <h1 className="text-3xl font-bold text-primary">Explore Paris</h1>
+                    <h1 className="text-3xl font-bold text-primary">Explore {destination}</h1>
                     {date && (
                         <p className="text-muted-foreground">
                             Finding activities for {new Date(date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
@@ -55,93 +73,68 @@ export default function ExplorePage({ params, searchParams }: {
                 isOpen={isServiceDetailsOpen}
                 onClose={() => setIsServiceDetailsOpen(false)}
                 service={selectedService}
-                type={selectedType}
+                type="Attraction"
                 tripId={trip?.id || id}
                 legId={leg?.id || ''}
             />
 
-            {/* Search & Filter Bar */}
+            {/* Search Bar */}
             <div className="flex flex-col md:flex-row gap-4">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="Search hotels, tours, events..." className="pl-10 bg-background" />
+                    <Input
+                        placeholder={`Search experiences in ${destination}...`}
+                        className="pl-10 bg-background"
+                        value={searchTerm}
+                        onChange={(e) => handleSearch(e.target.value)}
+                    />
                 </div>
-                <Button variant="outline" className="gap-2">
-                    <Filter className="h-4 w-4" /> Filters
-                </Button>
             </div>
 
-            <Tabs defaultValue="all" className="space-y-6">
-                <TabsList className="bg-muted/50 p-1">
-                    <TabsTrigger value="all" className="rounded-sm">All</TabsTrigger>
-                    <TabsTrigger value="hotels" className="rounded-sm">Hotels</TabsTrigger>
-                    <TabsTrigger value="attractions" className="rounded-sm">Attractions</TabsTrigger>
-                    <TabsTrigger value="food" className="rounded-sm">Food & Drink</TabsTrigger>
-                    <TabsTrigger value="transport" className="rounded-sm">Transport</TabsTrigger>
-                    <TabsTrigger value="events" className="rounded-sm">Events</TabsTrigger>
-                    <TabsTrigger value="essentials" className="rounded-sm">Essentials</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="all" className="space-y-8">
-                    <section className="space-y-4">
-                        <h2 className="text-xl font-semibold">Recommended Hotels</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {HOTELS.slice(0, 3).map((hotel, i) => (
-                                <ServiceCard key={i} service={hotel} type="Hotel" onOpenDetails={handleOpenDetails} />
-                            ))}
+            {/* Results */}
+            {isLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="rounded-xl border overflow-hidden">
+                            <Skeleton className="h-48 w-full rounded-none" />
+                            <div className="p-4 space-y-3">
+                                <Skeleton className="h-5 w-3/4" />
+                                <Skeleton className="h-4 w-1/2" />
+                                <Skeleton className="h-4 w-full" />
+                            </div>
                         </div>
-                    </section>
-
-                    <section className="space-y-4">
-                        <h2 className="text-xl font-semibold">Top Attractions</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {ATTRACTIONS.map((attraction, i) => (
-                                <ServiceCard key={i} service={attraction} type="Attraction" onOpenDetails={handleOpenDetails} />
-                            ))}
-                        </div>
-                    </section>
-                </TabsContent>
-
-                <TabsContent value="hotels" className="space-y-6">
+                    ))}
+                </div>
+            ) : error ? (
+                <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-6 flex items-center gap-4">
+                    <AlertCircle className="h-5 w-5 text-destructive shrink-0" />
+                    <p className="text-sm text-destructive flex-1">Could not load experiences</p>
+                    <Button variant="outline" size="sm" onClick={() => mutate()} className="gap-2">
+                        <RefreshCw className="h-4 w-4" /> Retry
+                    </Button>
+                </div>
+            ) : attractions.length > 0 ? (
+                <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                        {attractions.length} experience{attractions.length !== 1 ? 's' : ''} in {destination}
+                    </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {HOTELS.map((hotel, i) => (
-                            <ServiceCard key={i} service={hotel} type="Hotel" onOpenDetails={handleOpenDetails} />
+                        {attractions.map((attraction) => (
+                            <ServiceCard
+                                key={attraction.id}
+                                service={attraction}
+                                type="Attraction"
+                                onOpenDetails={handleOpenDetails}
+                            />
                         ))}
                     </div>
-                </TabsContent>
-
-                <TabsContent value="attractions" className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {ATTRACTIONS.map((attraction, i) => (
-                            <ServiceCard key={i} service={attraction} type="Attraction" onOpenDetails={handleOpenDetails} />
-                        ))}
-                    </div>
-                </TabsContent>
-                {/* Other tabs empty for demo */}
-                <TabsContent value="transport" className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {ATTRACTIONS.filter(a => a.category === 'Transfer').map((attraction, i) => (
-                            <ServiceCard key={i} service={attraction} type="Attraction" onOpenDetails={handleOpenDetails} />
-                        ))}
-                    </div>
-                </TabsContent>
-
-                <TabsContent value="events" className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {ATTRACTIONS.filter(a => a.category === 'Event').map((attraction, i) => (
-                            <ServiceCard key={i} service={attraction} type="Attraction" onOpenDetails={handleOpenDetails} />
-                        ))}
-                    </div>
-                </TabsContent>
-
-                <TabsContent value="essentials" className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {ATTRACTIONS.filter(a => a.category === 'ESim' || a.category === 'CityPass').map((attraction, i) => (
-                            <ServiceCard key={i} service={attraction} type="Attraction" onOpenDetails={handleOpenDetails} />
-                        ))}
-                    </div>
-                </TabsContent>
-            </Tabs>
+                </div>
+            ) : (
+                <div className="rounded-xl border bg-muted/30 p-12 text-center space-y-3">
+                    <p className="text-muted-foreground text-lg">No experiences found</p>
+                    <p className="text-sm text-muted-foreground">Try a different search term</p>
+                </div>
+            )}
         </div>
     );
 }

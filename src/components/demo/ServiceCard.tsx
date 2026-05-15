@@ -3,7 +3,7 @@
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Star, Clock, MapPin } from 'lucide-react';
+import { Star, Clock, MapPin, Award } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTrips } from '@/context/TripContext';
 
@@ -57,6 +57,12 @@ export function ServiceCard({ service, type, isInModal, onCloseModal, currentLeg
                 <Badge className="absolute top-2 right-2 bg-background/80 text-foreground backdrop-blur">
                     {isHotel ? 'Hotel' : (service.category || 'Experience')}
                 </Badge>
+                {!isHotel && service.isBestSeller && (
+                    <Badge className="absolute top-2 left-2 bg-amber-500 text-white border-0 gap-1">
+                        <Award className="h-3 w-3" />
+                        Best Seller
+                    </Badge>
+                )}
                 {isHotel && service.starRating > 0 && (
                     <div className="absolute top-2 left-2 flex gap-0.5">
                         {Array.from({ length: service.starRating }).map((_, i) => (

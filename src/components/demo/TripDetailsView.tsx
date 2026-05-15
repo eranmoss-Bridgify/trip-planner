@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Trip, ACTIVE_TRIP_ID } from '@/lib/mock-data';
 // MapView component to be implemented or imported correctly later
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -8,7 +8,6 @@ import { TripLeg } from './TripLeg';
 import { DocumentsWallet } from './DocumentsWallet';
 import { FileText, Navigation, StickyNote, Plus, Calendar, Users, Pencil, List, Map as MapIcon, Plane, ShoppingBag, ShieldCheck, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { FlightCard } from './FlightCard';
-import { UPCOMING_FLIGHT } from '@/lib/mock-data';
 import { useTrips } from '@/context/TripContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -44,6 +43,12 @@ export function TripDetailsView({ tripId }: { tripId?: string }) {
     const [isServiceDetailsOpen, setIsServiceDetailsOpen] = useState(false);
     const [selectedServiceForDetails, setSelectedServiceForDetails] = useState<Hotel | Attraction | null>(null);
     const [selectedServiceType, setSelectedServiceType] = useState<'Hotel' | 'Attraction' | null>(null);
+    const [contextFlight, setContextFlight] = useState<any>(null);
+
+    useEffect(() => {
+        const stored = sessionStorage.getItem('wv_flight_context');
+        if (stored) setContextFlight(JSON.parse(stored));
+    }, []);
 
     const handleOpenServiceDetails = (service: Hotel | Attraction, type: 'Hotel' | 'Attraction') => {
         setSelectedServiceForDetails(service);
@@ -113,6 +118,7 @@ export function TripDetailsView({ tripId }: { tripId?: string }) {
                 onClose={() => setIsMarketplaceOpen(false)}
                 destination={activeLeg?.location}
                 defaultTab={marketplaceTab}
+                vibes={trip.vibes}
                 onOpenServiceDetails={handleOpenServiceDetails}
             />
 
@@ -392,17 +398,17 @@ export function TripDetailsView({ tripId }: { tripId?: string }) {
                             <div className="bg-card rounded-xl border p-4 shadow-sm">
                                 <h3 className="font-semibold mb-4 text-sm flex justify-between items-center">
                                     Attached Flights
-                                    <span className="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full">{trip.attachedFlights?.length || 0}</span>
+                                    <span className="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full">{contextFlight ? 1 : 0}</span>
                                 </h3>
-                                {trip.attachedFlights && trip.attachedFlights.length > 0 ? (
+                                {contextFlight ? (
                                     <div className="space-y-4">
-                                        <FlightCard flight={UPCOMING_FLIGHT} hidePlanTrip={true} />
+                                        <FlightCard flight={contextFlight} hidePlanTrip={true} />
                                     </div>
                                 ) : (
                                     <p className="text-sm text-muted-foreground text-center py-4">No flights attached to this trip.</p>
                                 )}
                                 <Button variant="ghost" size="sm" className="w-full mt-4 text-muted-foreground hover:text-foreground">
-                                    {trip.attachedFlights && trip.attachedFlights.length > 0 ? "Attach Another Flight" : "Attach Flight"}
+                                    {contextFlight ? "Attach Another Flight" : "Attach Flight"}
                                 </Button>
                             </div>
                         </TabsContent>

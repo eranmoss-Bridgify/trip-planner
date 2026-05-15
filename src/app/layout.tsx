@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "EL AL Trip Planner",
-  description: "Plan your perfect trip with EL AL",
+  title: "Demo Co Trip Planner",
+  description: "Plan your perfect trip with Demo Co",
 };
 
 export default function RootLayout({

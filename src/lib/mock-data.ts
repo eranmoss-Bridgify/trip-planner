@@ -53,16 +53,24 @@ export type TicketType = {
     type: 'Adult' | 'Child' | 'Infant' | 'Senior' | 'VIP';
 };
 
+export type AttractionCategory =
+    | 'Tour' | 'Attraction' | 'Transfer' | 'Event'
+    | 'ESim' | 'CityPass' | 'Museum' | 'Outdoor'
+    | 'Food & Drink' | 'Nightlife' | 'Wellness'
+    | 'Workshop' | 'Show' | 'Water Sport';
+
 export type Attraction = {
     id: string;
     name: string;
-    image: string; // Maintain primary image
-    images?: string[]; // New image gallery
-    category: 'Tour' | 'Attraction' | 'Transfer' | 'Event' | 'ESim' | 'CityPass';
-    price: number; // "Starting from" price
+    image: string;
+    images?: string[];
+    category: AttractionCategory;
+    price: number;
     currency: string;
     duration?: string;
+    durationMinutes?: number;
     rating: number;
+    reviewCount?: number;
     date?: string;
     location?: string;
     description?: string;
@@ -71,6 +79,8 @@ export type Attraction = {
     reviews?: { author: string; rating: number; text: string; date: string }[];
     ticketTypes?: TicketType[];
     bookingStatus?: 'planned' | 'booked' | 'booked_manual';
+    supplierId?: string;
+    supplierName?: string;
 };
 
 // Selection State type for tracking what a user has chosen inside the sidebar
@@ -160,10 +170,10 @@ export type Trip = {
 
 export const CURRENT_USER: Collaborator = {
     id: 'u1',
-    name: 'Matan Cohen',
+    name: 'John Doe',
     avatar: 'https://github.com/shadcn.png',
     role: 'Owner',
-    email: 'matan@example.com'
+    email: 'john@example.com'
 };
 
 export const UPCOMING_FLIGHT: Flight = {
@@ -172,8 +182,8 @@ export const UPCOMING_FLIGHT: Flight = {
     flightNumber: '323',
     origin: 'TLV',
     originCity: 'Tel Aviv',
-    destination: 'CDG',
-    destinationCity: 'Paris',
+    destination: 'BCN',
+    destinationCity: 'Barcelona',
     departureTime: '2026-06-15T09:00:00Z',
     arrivalTime: '2026-06-15T13:00:00Z',
     status: 'Scheduled',
@@ -184,68 +194,49 @@ export const UPCOMING_FLIGHT: Flight = {
     class: 'Business'
 };
 
-import { PARIS_HOTELS, PARIS_ATTRACTIONS } from './data/paris-data';
-
-export const HOTELS: Hotel[] = [
-    ...PARIS_HOTELS,
-    {
-        id: 'h99',
-        name: 'The Savoy',
-        image: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?q=80&w=2070&auto=format&fit=crop',
-        rating: 5,
-        price: 650,
-        currency: 'GBP',
-        description: 'Iconic luxury hotel on the Strand.',
-        location: 'London, UK',
-    }
-];
-
-export const ATTRACTIONS: Attraction[] = [...PARIS_ATTRACTIONS];
-
 // Initialize data for local storage
 export const DEFAULT_DB_STATE = {
     currentUser: CURRENT_USER,
     upcomingFlight: UPCOMING_FLIGHT,
-    hotels: HOTELS,
-    attractions: PARIS_ATTRACTIONS,
     trips: [
         {
             id: 't1',
             flightId: 'f1',
             attachedFlights: ['f1'],
-            name: 'Summer in Paris',
-            destination: 'Paris, France',
+            name: 'Barcelona Adventure',
+            destination: 'Barcelona, Spain',
             startDate: '2026-06-15',
             endDate: '2026-06-22',
-            image: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?q=80&w=2073&auto=format&fit=crop',
+            image: 'https://images.unsplash.com/photo-1539037116277-4db20889f2d4?q=80&w=2070&auto=format&fit=crop',
             passengers: { infants: 0, children: 0, adults: 2, elderly: 0 },
+            vibes: ['culture', 'food', 'history'],
             collaborators: [
-                { id: 'u1', name: 'Matan Cohen', avatar: 'https://github.com/shadcn.png', role: 'Owner', email: 'matan@example.com' },
-                { id: 'u2', name: 'Sarah Cohen', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150', role: 'Editor', email: 'sarah@example.com' }
+                { id: 'u1', name: 'John Doe', avatar: 'https://github.com/shadcn.png', role: 'Owner', email: 'john@example.com' },
+                { id: 'u2', name: 'Jane Doe', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150', role: 'Editor', email: 'jane@example.com' }
             ] as Collaborator[],
             legs: [
                 {
                     id: 'leg-t1-1',
-                    title: 'Paris Stop',
-                    location: 'Paris',
+                    title: 'Barcelona Stay',
+                    location: 'Barcelona',
                     startDate: '2026-06-15',
                     endDate: '2026-06-22',
                     hotels: [],
                     arrivalTransfer: null,
                     days: [
-                        { date: '2026-06-15', location: 'Paris', activities: [] as (Hotel | Attraction)[] },
-                        { date: '2026-06-16', location: 'Paris', activities: [] as (Hotel | Attraction)[] },
-                        { date: '2026-06-17', location: 'Paris', activities: [] as (Hotel | Attraction)[] }
+                        { date: '2026-06-15', location: 'Barcelona', activities: [] as (Hotel | Attraction)[] },
+                        { date: '2026-06-16', location: 'Barcelona', activities: [] as (Hotel | Attraction)[] },
+                        { date: '2026-06-17', location: 'Barcelona', activities: [] as (Hotel | Attraction)[] }
                     ]
                 }
             ],
             unscheduled: [],
             notes: [
-                { id: 'n1', title: 'Dinner Reservations', content: 'Le Jules Verne at 20:00 on the 16th.', updatedAt: '2026-02-10' }
+                { id: 'n1', title: 'Dinner Reservations', content: 'La Barceloneta at 20:00 on the 16th.', updatedAt: '2026-02-10' }
             ],
             documents: [
                 { id: 'd1', name: 'Hotel Voucher.pdf', type: 'PDF', url: '#', dateAdded: '2026-02-01' },
-                { id: 'd2', name: 'Disneyland Tickets', type: 'Ticket', url: '#', dateAdded: '2026-02-05' }
+                { id: 'd2', name: 'Sagrada Familia Tickets', type: 'Ticket', url: '#', dateAdded: '2026-02-05' }
             ] as TripDocument[]
         },
         {
@@ -257,7 +248,7 @@ export const DEFAULT_DB_STATE = {
             image: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?q=80&w=2070&auto=format&fit=crop',
             passengers: { infants: 0, children: 1, adults: 2, elderly: 0 },
             collaborators: [
-                { id: 'u1', name: 'Matan Cohen', avatar: 'https://github.com/shadcn.png', role: 'Owner', email: 'matan@example.com' }
+                { id: 'u1', name: 'John Doe', avatar: 'https://github.com/shadcn.png', role: 'Owner', email: 'john@example.com' }
             ] as Collaborator[],
             legs: [
                 {

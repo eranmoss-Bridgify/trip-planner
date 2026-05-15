@@ -92,7 +92,7 @@ export function HotelBookingSidebar({ service, isOpen, onClose, tripId, legId, h
                     <div>
                         <h3 className="font-semibold text-lg mb-2">Overview</h3>
                         <p className="text-muted-foreground text-sm leading-relaxed">
-                            {service.description || 'Enjoy a premium experience curated by El Al. Book now to secure your spot and seamlessly add this to your itinerary.'}
+                            {service.description || 'Enjoy a premium experience. Book now to secure your spot and seamlessly add this to your itinerary.'}
                         </p>
                     </div>
 

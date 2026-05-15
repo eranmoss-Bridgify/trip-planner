@@ -9,7 +9,7 @@ export function Header() {
             <div className="container flex h-16 items-center justify-between px-4 md:px-6">
                 <Link href="/" className="flex items-center gap-2 font-bold text-xl text-primary">
                     <Plane className="h-6 w-6 -rotate-45" />
-                    <span>EL AL</span>
+                    <span>Demo Co</span>
                 </Link>
                 <nav className="hidden md:flex gap-6 text-sm font-medium text-muted-foreground">
                     <Link href="#" className="hover:text-primary transition-colors">Book a Flight</Link>
@@ -24,7 +24,7 @@ export function Header() {
                     </Button>
                     <Button variant="outline" className="gap-2 rounded-full border-primary/20 hover:bg-primary/5">
                         <User className="h-4 w-4" />
-                        <span className="hidden sm:inline">Ofir Cohen</span>
+                        <span className="hidden sm:inline">John Doe</span>
                     </Button>
                 </div>
             </div>

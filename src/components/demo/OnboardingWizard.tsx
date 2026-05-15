@@ -17,7 +17,6 @@ import { Label } from '@/components/ui/label';
 import { Plus, Plane, MapPin, Sparkles, Building2, Coffee, Ticket, Calendar as CalendarIcon, PersonStanding, Check, TreePine, Wine, ShoppingBag, Heart, Compass, Landmark } from 'lucide-react';
 import { useTrips } from '@/context/TripContext';
 import { Trip, TripLegData, CURRENT_USER, Hotel, Attraction } from '@/lib/mock-data';
-import { PARIS_HOTELS, PARIS_ATTRACTIONS } from '@/lib/data/paris-data';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
@@ -29,6 +28,8 @@ interface OnboardingWizardProps {
     initialData?: {
         destination?: string;
         dates?: string;
+        dateFrom?: Date;
+        dateTo?: Date;
         passengers?: number;
     };
     trigger?: React.ReactNode;
@@ -63,8 +64,8 @@ export function OnboardingWizard({ initialData, trigger }: OnboardingWizardProps
     const [tripName, setTripName] = useState(initialData?.destination ? `Trip to ${initialData.destination}` : '');
     const [destination, setDestination] = useState(initialData?.destination || '');
     const [dateRange, setDateRange] = useState<DateRange | undefined>({
-        from: undefined,
-        to: undefined,
+        from: initialData?.dateFrom ?? undefined,
+        to: initialData?.dateTo ?? undefined,
     });
 
     const [pax, setPax] = useState({
@@ -97,15 +98,7 @@ export function OnboardingWizard({ initialData, trigger }: OnboardingWizardProps
         const startDate = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : new Date().toISOString().split('T')[0];
         const endDate = dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-        let suggestions: (Hotel | Attraction)[] = [];
-
-        if (!skipSuggestions && (destination.toLowerCase().includes('paris') || destination === '')) {
-            // Pick a couple hotels
-            const suggestedHotels = PARIS_HOTELS.slice(0, 2).map(h => ({ ...h, id: `${h.id}-sugg` }));
-            // Pick some attractions based on 'vibes' (mock logic)
-            const suggestedAttractions = PARIS_ATTRACTIONS.slice(0, 3).map(a => ({ ...a, id: `${a.id}-sugg` }));
-            suggestions = [...suggestedHotels, ...suggestedAttractions];
-        }
+        const suggestions: (Hotel | Attraction)[] = [];
 
         const leg: TripLegData = {
             id: `leg-${tripId}-1`,
@@ -157,7 +150,7 @@ export function OnboardingWizard({ initialData, trigger }: OnboardingWizardProps
             setStep(1);
             setTripName(initialData?.destination ? `Trip to ${initialData.destination}` : '');
             setDestination(initialData?.destination || '');
-            setDateRange({ from: undefined, to: undefined });
+            setDateRange({ from: initialData?.dateFrom ?? undefined, to: initialData?.dateTo ?? undefined });
             setPax({ infants: 0, children: 0, adults: initialData?.passengers || 1, elderly: 0 });
             setFamiliarity('');
             setSelectedVibes([]);

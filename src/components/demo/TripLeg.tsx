@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { TripDay, Hotel, Attraction, TripLegData, HOTELS } from '@/lib/mock-data';
+import { TripDay, Hotel, Attraction, TripLegData } from '@/lib/mock-data';
 import { ItineraryDay } from './ItineraryDay';
 import { cn } from '@/lib/utils';
 import { MapPin, BedDouble, Car, Pencil, Save, X, Trash2, ShieldCheck, ShoppingBag, CheckCircle2, Sparkles } from 'lucide-react';
@@ -14,14 +14,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useTrips } from '@/context/TripContext';
 import { DragDropContext, DropResult } from '@hello-pangea/dnd';
-import { RecommendationCarousel } from './RecommendationCarousel';
+
 import { HotelBookingSidebar } from './HotelBookingSidebar';
 
 interface TripLegProps {
     leg: TripLegData;
     tripId: string;
     onOpenMarketplace?: (tab?: string) => void;
-    onOpenServiceDetails?: (service: Hotel | Attraction, type: 'Hotel' | 'Attraction') => void;
+    onOpenServiceDetails?: (service: any, type: 'Hotel' | 'Attraction') => void;
     onDelete?: () => void;
 }
 
@@ -421,18 +421,6 @@ export function TripLeg({ leg, tripId, onOpenMarketplace, onOpenServiceDetails, 
                         </div>
                     )}
 
-                    {/* Hotel Recommendations Carousel - Only show on first leg */}
-                    {trip?.legs[0]?.id === leg.id && HOTELS.filter(h => !trip?.dismissedRecommendations?.includes(h.id)).slice(0, 5).length > 0 && (
-                        <div className="mt-4">
-                            <RecommendationCarousel
-                                title="Recommended Accommodations"
-                                items={HOTELS.filter(h => !trip?.dismissedRecommendations?.includes(h.id)).slice(0, 5)}
-                                onDismiss={(id) => dismissRecommendation(tripId, id)}
-                                onDismissAll={(ids) => dismissRecommendations(tripId, ids)}
-                                onClick={(item) => onOpenServiceDetails && onOpenServiceDetails(item, 'Hotel')}
-                            />
-                        </div>
-                    )}
 
                     <div className="rounded-xl border bg-slate-50 p-4 mt-6">
                         <div className="flex items-center justify-between mb-3">

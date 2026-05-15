@@ -1,127 +1,118 @@
+'use client';
+
 import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Search, Filter, Compass } from 'lucide-react';
-import { HOTELS, ATTRACTIONS, Hotel, Attraction } from '@/lib/mock-data';
+import { Search, Compass, AlertCircle, RefreshCw } from 'lucide-react';
 import { ServiceCard } from '@/components/demo/ServiceCard';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useBridgifySearch } from '@/lib/api-client';
+import { bridgifyToAttraction } from '@/lib/bridgify-adapter';
+import { VIBE_TO_SEARCH, vibestoSearchTerm } from '@/lib/utils';
 
 interface MarketplaceModalProps {
     isOpen: boolean;
     onClose: () => void;
     destination?: string;
     defaultTab?: string;
-    onOpenServiceDetails?: (service: Hotel | Attraction, type: 'Hotel' | 'Attraction') => void;
+    vibes?: string[];
+    onOpenServiceDetails?: (service: any, type: 'Hotel' | 'Attraction') => void;
 }
 
-export function MarketplaceModal({ isOpen, onClose, destination = "Paris", defaultTab = "all", onOpenServiceDetails }: MarketplaceModalProps) {
-    // Basic filter for demo purposes - in a real app this would complex
-    const [searchTerm, setSearchTerm] = useState('');
-    const [activeTab, setActiveTab] = useState(defaultTab);
+export function MarketplaceModal({ isOpen, onClose, destination = "Barcelona", vibes, onOpenServiceDetails }: MarketplaceModalProps) {
+    const defaultSearch = vibestoSearchTerm(vibes);
+    const [searchTerm, setSearchTerm] = useState(defaultSearch);
+    const [debouncedSearch, setDebouncedSearch] = useState(defaultSearch);
+
+    const { data, error, isLoading, mutate } = useBridgifySearch({
+        textSearch: debouncedSearch,
+        cityName: destination,
+    });
+
+    const attractions = (data?.attractions ?? []).map(bridgifyToAttraction);
 
     useEffect(() => {
         if (isOpen) {
-            setActiveTab(defaultTab);
+            const term = vibestoSearchTerm(vibes);
+            setSearchTerm(term);
+            setDebouncedSearch(term);
         }
-    }, [isOpen, defaultTab]);
+    }, [isOpen, vibes]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="max-w-5xl h-[85vh] flex flex-col overflow-hidden p-0">
-                <DialogHeader className="px-6 py-4 border-b shrink-0 flex flex-row items-center justify-between">
-                    <div>
-                        <DialogTitle className="text-2xl font-bold text-primary flex items-center gap-2">
-                            <Compass className="h-6 w-6 text-blue-500" />
-                            Explore {destination}
-                        </DialogTitle>
-                        <p className="text-sm text-muted-foreground mt-1">
-                            Find top-rated hotels, tours, and experiences to add to your trip.
-                        </p>
-                    </div>
+                <DialogHeader className="px-6 py-4 border-b shrink-0">
+                    <DialogTitle className="text-2xl font-bold text-primary flex items-center gap-2">
+                        <Compass className="h-6 w-6 text-blue-500" />
+                        Explore {destination}
+                    </DialogTitle>
+                    <p className="text-sm text-muted-foreground mt-1">
+                        Find tours, activities, and experiences to add to your trip.
+                    </p>
                 </DialogHeader>
 
                 <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
-                    <div className="flex flex-col md:flex-row gap-4 mb-6 sticky top-0 bg-slate-50/50 z-10 py-2 backdrop-blur-sm">
-                        <div className="relative flex-1">
+                    <div className="mb-6 sticky top-0 bg-slate-50/50 z-10 py-2 backdrop-blur-sm space-y-3">
+                        <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
-                                placeholder="Search hotels, tours, events..."
+                                placeholder="Search experiences..."
                                 className="pl-10 bg-background shadow-sm"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
-                        <Button variant="outline" className="gap-2 bg-background shadow-sm">
-                            <Filter className="h-4 w-4" /> Filters
-                        </Button>
+                        {vibes && vibes.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                                {vibes.map(vibe => {
+                                    const term = VIBE_TO_SEARCH[vibe];
+                                    if (!term) return null;
+                                    const isActive = searchTerm === term;
+                                    const label = vibe.charAt(0).toUpperCase() + vibe.slice(1);
+                                    return (
+                                        <button
+                                            key={vibe}
+                                            onClick={() => setSearchTerm(term)}
+                                            className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'}`}
+                                        >
+                                            {label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
 
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                        <TabsList className="bg-muted/70 p-1 w-full flex overflow-x-auto justify-start sticky top-[60px] z-10 backdrop-blur-md">
-                            <TabsTrigger value="all" className="rounded-sm flex-1 whitespace-nowrap min-w-[100px]">All</TabsTrigger>
-                            <TabsTrigger value="hotels" className="rounded-sm flex-1 whitespace-nowrap min-w-[100px]">Hotels</TabsTrigger>
-                            <TabsTrigger value="attractions" className="rounded-sm flex-1 whitespace-nowrap min-w-[100px]">Attractions</TabsTrigger>
-                            <TabsTrigger value="food" className="rounded-sm flex-1 whitespace-nowrap min-w-[100px]">Food & Drink</TabsTrigger>
-                            <TabsTrigger value="transport" className="rounded-sm flex-1 whitespace-nowrap min-w-[100px]">Transport</TabsTrigger>
-                            <TabsTrigger value="events" className="rounded-sm flex-1 whitespace-nowrap min-w-[100px]">Events</TabsTrigger>
-                            <TabsTrigger value="essentials" className="rounded-sm flex-1 whitespace-nowrap min-w-[100px]">Essentials</TabsTrigger>
-                        </TabsList>
-
-                        <TabsContent value="all" className="space-y-8 mt-6">
-                            <section className="space-y-4">
-                                <h2 className="text-xl font-semibold">Recommended Hotels</h2>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {HOTELS.slice(0, 3).map((hotel, i) => (
-                                        <ServiceCard
-                                            key={`all-h-${i}`}
-                                            service={hotel}
-                                            type="Hotel"
-                                            isInModal
-                                            onCloseModal={onClose}
-                                            onOpenDetails={onOpenServiceDetails}
-                                        />
-                                    ))}
-                                </div>
-                            </section>
-
-                            <section className="space-y-4">
-                                <h2 className="text-xl font-semibold">Top Attractions</h2>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {ATTRACTIONS.slice(0, 6).map((attraction, i) => (
-                                        <ServiceCard
-                                            key={`all-a-${i}`}
-                                            service={attraction}
-                                            type="Attraction"
-                                            isInModal
-                                            onCloseModal={onClose}
-                                            onOpenDetails={onOpenServiceDetails}
-                                        />
-                                    ))}
-                                </div>
-                            </section>
-                        </TabsContent>
-
-                        <TabsContent value="hotels" className="space-y-6 mt-6">
+                    {isLoading ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {Array.from({ length: 6 }).map((_, i) => (
+                                <MarketplaceCardSkeleton key={i} />
+                            ))}
+                        </div>
+                    ) : error ? (
+                        <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-8 flex flex-col items-center gap-4">
+                            <AlertCircle className="h-8 w-8 text-destructive" />
+                            <p className="text-sm text-destructive">Could not load experiences</p>
+                            <Button variant="outline" size="sm" onClick={() => mutate()} className="gap-2">
+                                <RefreshCw className="h-4 w-4" /> Retry
+                            </Button>
+                        </div>
+                    ) : attractions.length > 0 ? (
+                        <>
+                            <p className="text-sm text-muted-foreground mb-4">
+                                {attractions.length} experience{attractions.length !== 1 ? 's' : ''} found
+                            </p>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {HOTELS.map((hotel, i) => (
+                                {attractions.map((attraction) => (
                                     <ServiceCard
-                                        key={`h-${i}`}
-                                        service={hotel}
-                                        type="Hotel"
-                                        isInModal
-                                        onCloseModal={onClose}
-                                        onOpenDetails={onOpenServiceDetails}
-                                    />
-                                ))}
-                            </div>
-                        </TabsContent>
-
-                        <TabsContent value="attractions" className="space-y-6 mt-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {ATTRACTIONS.map((attraction, i) => (
-                                    <ServiceCard
-                                        key={`a-${i}`}
+                                        key={attraction.id}
                                         service={attraction}
                                         type="Attraction"
                                         isInModal
@@ -130,55 +121,33 @@ export function MarketplaceModal({ isOpen, onClose, destination = "Paris", defau
                                     />
                                 ))}
                             </div>
-                        </TabsContent>
-
-                        <TabsContent value="transport" className="space-y-6 mt-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {ATTRACTIONS.filter(a => a.category === 'Transfer').map((attraction, i) => (
-                                    <ServiceCard
-                                        key={`t-${i}`}
-                                        service={attraction}
-                                        type="Attraction"
-                                        isInModal
-                                        onCloseModal={onClose}
-                                        onOpenDetails={onOpenServiceDetails}
-                                    />
-                                ))}
-                            </div>
-                        </TabsContent>
-
-                        <TabsContent value="events" className="space-y-6 mt-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {ATTRACTIONS.filter(a => a.category === 'Event').map((attraction, i) => (
-                                    <ServiceCard
-                                        key={`e-${i}`}
-                                        service={attraction}
-                                        type="Attraction"
-                                        isInModal
-                                        onCloseModal={onClose}
-                                        onOpenDetails={onOpenServiceDetails}
-                                    />
-                                ))}
-                            </div>
-                        </TabsContent>
-
-                        <TabsContent value="essentials" className="space-y-6 mt-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {ATTRACTIONS.filter(a => a.category === 'ESim' || a.category === 'CityPass').map((attraction, i) => (
-                                    <ServiceCard
-                                        key={`es-${i}`}
-                                        service={attraction}
-                                        type="Attraction"
-                                        isInModal
-                                        onCloseModal={onClose}
-                                        onOpenDetails={onOpenServiceDetails}
-                                    />
-                                ))}
-                            </div>
-                        </TabsContent>
-                    </Tabs>
+                        </>
+                    ) : (
+                        <div className="rounded-xl border bg-muted/30 p-12 text-center">
+                            <p className="text-muted-foreground">
+                                No experiences found for &quot;{debouncedSearch}&quot; in {destination}
+                            </p>
+                        </div>
+                    )}
                 </div>
             </DialogContent>
         </Dialog>
+    );
+}
+
+function MarketplaceCardSkeleton() {
+    return (
+        <div className="rounded-xl border overflow-hidden">
+            <Skeleton className="h-48 w-full rounded-none" />
+            <div className="p-4 space-y-3">
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-4 w-full" />
+            </div>
+            <div className="p-4 pt-0 flex justify-between items-center border-t">
+                <Skeleton className="h-6 w-20" />
+                <Skeleton className="h-9 w-24" />
+            </div>
+        </div>
     );
 }

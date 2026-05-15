@@ -26,7 +26,7 @@ export function ShareDialog({ trip }: ShareDialogProps) {
     const [collaborators, setCollaborators] = useState(trip.collaborators);
 
     const handleCopy = () => {
-        navigator.clipboard.writeText(`https://elal-trip.com/join/${trip.id}`);
+        navigator.clipboard.writeText(`https://demo-co-trip.com/join/${trip.id}`);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
@@ -70,7 +70,7 @@ export function ShareDialog({ trip }: ShareDialogProps) {
                         </Label>
                         <Input
                             id="link"
-                            defaultValue={`https://elal-trip.com/join/${trip.id}`}
+                            defaultValue={`https://demo-co-trip.com/join/${trip.id}`}
                             readOnly
                         />
                     </div>

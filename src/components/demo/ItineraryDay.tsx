@@ -1,8 +1,9 @@
-import { TripDay, Attraction, Hotel, ATTRACTIONS } from '@/lib/mock-data';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { TripDay } from '@/lib/mock-data';
+import type { Attraction } from '@/types/services';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Hotel as HotelIcon, Camera, Bus, MapPin, Clock, MoreHorizontal, BedDouble, ShieldCheck, ShoppingBag, CheckCircle2, Trash2, GripVertical, Calendar, AlertCircle } from 'lucide-react';
-import { cn, formatShortDate } from '@/lib/utils';
+import { cn, formatShortDate, VIBE_TO_SEARCH, rotateArray } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { Droppable, Draggable } from '@hello-pangea/dnd';
@@ -17,44 +18,91 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { RecommendationCarousel } from './RecommendationCarousel';
 import { Sparkles } from 'lucide-react';
+import { useBridgifySearch } from '@/lib/api-client';
+import { bridgifyToAttraction } from '@/lib/bridgify-adapter';
 
 interface ItineraryDayProps {
     day: TripDay;
     tripId: string;
     index: number;
     legId: string;
-    checkIns?: { hotel: Hotel; checkIn: string; checkOut: string }[];
-    checkOuts?: { hotel: Hotel; checkIn: string; checkOut: string }[];
-    onOpenServiceDetails?: (service: Hotel | Attraction, type: 'Hotel' | 'Attraction') => void;
+    checkIns?: { hotel: any; checkIn: string; checkOut: string }[];
+    checkOuts?: { hotel: any; checkIn: string; checkOut: string }[];
+    onOpenServiceDetails?: (service: any, type: 'Hotel' | 'Attraction') => void;
 }
 
 export function ItineraryDay({ day, tripId, index, legId, checkIns, checkOuts, onOpenServiceDetails }: ItineraryDayProps) {
-    const { trips, moveActivityToLeg, removeActivity, updateItemBookingStatus, dismissRecommendation, dismissRecommendations, addServiceToLeg } = useTrips();
+    const { trips, moveActivityToLeg, removeActivity, updateItemBookingStatus, dismissRecommendation, dismissRecommendations } = useTrips();
     const trip = trips.find(t => t.id === tripId);
+    const leg = trip?.legs.find(l => l.id === legId);
+    const destination = leg?.location ?? '';
 
-    // Pick 4 suggestions based on day index, filter out dismissed ones
-    const daySuggestions = ATTRACTIONS.filter((a: Attraction) => a.category === 'Attraction' || a.category === 'Tour')
-        .slice((index * 4) % ATTRACTIONS.length, ((index * 4) + 4) % ATTRACTIONS.length || ATTRACTIONS.length)
-        .filter((s: Attraction) => !trip?.dismissedRecommendations?.includes(s.id));
+    // Derive up to 3 unique search terms from all selected vibes
+    const vibeTerms = [...new Set(
+        (trip?.vibes ?? []).map((v: string) => VIBE_TO_SEARCH[v]).filter(Boolean)
+    )].slice(0, 3) as string[];
+    const term0 = vibeTerms[0] ?? 'tour';
+    const term1 = vibeTerms[1] ?? null;
+    const term2 = vibeTerms[2] ?? null;
+
+    // Three parallel SWR hooks — hooks cannot be in loops, so we fix at 3
+    const { data: data0 } = useBridgifySearch({ textSearch: term0, cityName: destination, pageSize: 50 });
+    const { data: data1 } = useBridgifySearch({
+        textSearch: term1 ?? undefined,
+        cityName: term1 ? destination : undefined,
+        pageSize: 30,
+    });
+    const { data: data2 } = useBridgifySearch({
+        textSearch: term2 ?? undefined,
+        cityName: term2 ? destination : undefined,
+        pageSize: 30,
+    });
+
+    // Round-robin interleave all three lists, deduplicate by id
+    const lists = [
+        data0?.attractions ?? [],
+        data1?.attractions ?? [],
+        data2?.attractions ?? [],
+    ];
+    const seen = new Set<string>();
+    const combined: any[] = [];
+    for (let i = 0; i < Math.max(...lists.map(l => l.length)); i++) {
+        for (const list of lists) {
+            if (i < list.length) {
+                const item = list[i];
+                if (!seen.has(item.external_id)) {
+                    seen.add(item.external_id);
+                    combined.push(item);
+                }
+            }
+        }
+    }
+
+    const allAttractions = combined.map(bridgifyToAttraction) as any[];
+    const rotated = rotateArray(allAttractions, index * 4);
+    const daySuggestions = rotated
+        .filter((s: any) => !trip?.dismissedRecommendations?.includes(s.id))
+        .slice(0, 4);
+
+    // Carousel title reflects active vibes
+    const carouselTitle = vibeTerms.length > 1
+        ? `${vibeTerms.slice(0, 2).map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(' & ')} picks for Day ${index + 1}`
+        : `${term0.charAt(0).toUpperCase() + term0.slice(1)} recommendations for Day ${index + 1}`;
 
     const handleSurpriseMe = () => {
-        const availableAttractions = ATTRACTIONS.filter((a: Attraction) =>
-            (a.category === 'Attraction' || a.category === 'Tour') &&
-            !day.activities.some(da => da.id.replace(/-[0-9]+-[0-9]+$/, '') === a.id) // Avoid immediate duplicates
+        const available = allAttractions.filter((a: any) =>
+            !day.activities.some(da => da.id.replace(/-[0-9]+-[0-9]+$/, '') === a.id)
         );
-        if (availableAttractions.length === 0) return;
+        if (available.length === 0) return;
 
-        const randomAttraction = availableAttractions[Math.floor(Math.random() * availableAttractions.length)];
-
+        const random = available[Math.floor(Math.random() * available.length)];
         if (onOpenServiceDetails) {
-            onOpenServiceDetails({ ...randomAttraction, date: day.date }, 'Attraction');
+            onOpenServiceDetails({ ...random, date: day.date } as any, 'Attraction');
         }
     };
 
     return (
         <div className="pl-4 sm:pl-0">
-            {/* Dot/Line handled by parent for grouping */}
-
             <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-lg">Day {index + 1} - {new Date(day.date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</h3>
                 <div className="flex items-center gap-2">
@@ -63,6 +111,7 @@ export function ItineraryDay({ day, tripId, index, legId, checkIns, checkOuts, o
                         variant="secondary"
                         className="gap-2 bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 hover:from-indigo-200 hover:to-purple-200 border-indigo-200 border"
                         onClick={handleSurpriseMe}
+                        disabled={allAttractions.length === 0}
                     >
                         <Sparkles className="h-4 w-4" /> Surprise Me
                     </Button>
@@ -87,7 +136,6 @@ export function ItineraryDay({ day, tripId, index, legId, checkIns, checkOuts, o
                         <Button variant="ghost" size="sm" className="h-8 text-orange-700 hover:text-orange-800 hover:bg-orange-100">Details</Button>
                     </div>
 
-                    {/* Departure Transfer Hook */}
                     <Link href={`/trip/${tripId}/explore?category=transport`}>
                         <Button variant="ghost" size="sm" className="w-full mt-2 border border-dashed text-muted-foreground gap-2">
                             <Bus className="h-3 w-3" /> Book Departure Transfer
@@ -142,7 +190,6 @@ export function ItineraryDay({ day, tripId, index, legId, checkIns, checkOuts, o
                                                 {...provided.draggableProps}
                                                 style={{ ...provided.draggableProps.style }}
                                             >
-                                                {/* Drag Handle */}
                                                 <div
                                                     {...provided.dragHandleProps}
                                                     className="flex items-center justify-center px-1.5 bg-muted/20 hover:bg-muted/50 transition-colors cursor-grab active:cursor-grabbing border-r shrink-0"
@@ -151,15 +198,11 @@ export function ItineraryDay({ day, tripId, index, legId, checkIns, checkOuts, o
                                                     <GripVertical className="h-4 w-4 text-muted-foreground/40 hover:text-muted-foreground" />
                                                 </div>
 
-                                                {/* Thumbnail */}
                                                 <div className="w-20 shrink-0 bg-muted">
                                                     <img src={activity.image} alt={activity.name} className="w-full h-full object-cover" />
                                                 </div>
 
-                                                {/* Content */}
                                                 <div className="flex-1 p-3 flex flex-col gap-1 min-w-0">
-
-                                                    {/* Row 1: Status badge + menu */}
                                                     <div className="flex items-center justify-between gap-2">
                                                         <div className="flex items-center gap-1.5">
                                                             {isPurchased ? (
@@ -240,10 +283,8 @@ export function ItineraryDay({ day, tripId, index, legId, checkIns, checkOuts, o
                                                         </DropdownMenu>
                                                     </div>
 
-                                                    {/* Row 2: Title */}
                                                     <h4 className="font-semibold text-sm leading-tight truncate">{activity.name}</h4>
 
-                                                    {/* Row 3: Category + Duration */}
                                                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                                         {(activity as Attraction).category ? <Camera className="h-3 w-3 shrink-0" /> : <HotelIcon className="h-3 w-3 shrink-0" />}
                                                         <span>{(activity as Attraction).category || 'Hotel'}</span>
@@ -256,7 +297,6 @@ export function ItineraryDay({ day, tripId, index, legId, checkIns, checkOuts, o
                                                         )}
                                                     </div>
 
-                                                    {/* Row 4: Date (always shows booking date; warns if dragged to wrong day) */}
                                                     {(activity as any).date && (() => {
                                                         const bookedDate = (activity as any).date as string;
                                                         const isMismatch = bookedDate.split('T')[0] !== day.date.split('T')[0];
@@ -271,7 +311,6 @@ export function ItineraryDay({ day, tripId, index, legId, checkIns, checkOuts, o
                                                         );
                                                     })()}
 
-                                                    {/* Row 5: Passengers / Tickets */}
                                                     {(() => {
                                                         const trip = trips.find(t => t.id === tripId);
                                                         const adults = trip?.passengers?.adults ?? 1;
@@ -299,11 +338,10 @@ export function ItineraryDay({ day, tripId, index, legId, checkIns, checkOuts, o
                 )}
             </Droppable>
 
-            {/* Daily Activity Recommendations - Only on first leg */}
-            {trips.find(t => t.id === tripId)?.legs[0].id === legId && daySuggestions.length > 0 && (
+            {daySuggestions.length > 0 && (
                 <div className="mt-2">
                     <RecommendationCarousel
-                        title={`Recommended for Day ${index + 1}`}
+                        title={carouselTitle}
                         items={daySuggestions}
                         onDismiss={(id) => dismissRecommendation(tripId, id)}
                         onDismissAll={(ids) => dismissRecommendations(tripId, ids)}
