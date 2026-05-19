@@ -99,6 +99,8 @@ export interface Attraction {
   isBestSeller?: boolean;
   availabilityUuid?: string;
   availabilityType?: 'BSN' | 'CLD' | 'TSL' | 'EVT';
+  lat?: number;
+  lng?: number;
 }
 
 export interface Review {

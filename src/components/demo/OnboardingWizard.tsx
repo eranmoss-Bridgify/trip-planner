@@ -27,12 +27,16 @@ import { cn } from "@/lib/utils";
 interface OnboardingWizardProps {
     initialData?: {
         destination?: string;
+        destCode?: string;
         dates?: string;
         dateFrom?: Date;
         dateTo?: Date;
         passengers?: number;
+        flight?: string;
+        origin?: string;
     };
     trigger?: React.ReactNode;
+    onOpen?: () => void;
 }
 
 const FAMILIARITY_LEVELS = [
@@ -54,7 +58,7 @@ const VIBES = [
     { id: 'history', label: 'Historical Sites', icon: Landmark },
 ];
 
-export function OnboardingWizard({ initialData, trigger }: OnboardingWizardProps) {
+export function OnboardingWizard({ initialData, trigger, onOpen }: OnboardingWizardProps) {
     const [open, setOpen] = useState(false);
     const [step, setStep] = useState(1);
     const { addTrip } = useTrips();
@@ -78,14 +82,27 @@ export function OnboardingWizard({ initialData, trigger }: OnboardingWizardProps
     const [familiarity, setFamiliarity] = useState('');
     const [selectedVibes, setSelectedVibes] = useState<string[]>([]);
 
+    const hasPrefilledDestination = Boolean(initialData?.destination);
+
     const handleNext = () => {
+        if (step === 1 && hasPrefilledDestination) {
+            // Skip destination step — it's already set from URL params
+            setStep(3);
+            return;
+        }
         if (step === 2 && !destination.trim()) {
             document.getElementById('destination')?.focus();
             return;
         }
         setStep(s => Math.min(s + 1, 3));
     };
-    const handleBack = () => setStep(s => Math.max(s - 1, 1));
+    const handleBack = () => {
+        if (step === 3 && hasPrefilledDestination) {
+            setStep(1);
+            return;
+        }
+        setStep(s => Math.max(s - 1, 1));
+    };
 
     const toggleVibe = (id: string) => {
         setSelectedVibes(prev =>
@@ -108,18 +125,18 @@ export function OnboardingWizard({ initialData, trigger }: OnboardingWizardProps
             endDate,
             hotels: [],
             arrivalTransfer: null,
-            days: [
-                { date: startDate, location: destination || 'Unknown', activities: [] },
-                { date: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], location: destination || 'Unknown', activities: [] },
-                { date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], location: destination || 'Unknown', activities: [] }
-            ],
+            days: [],
             suggestions
         };
+
+        const destLabel = initialData?.destCode
+            ? `${destination} (${initialData.destCode})`
+            : destination || 'Unknown Destination';
 
         return {
             id: tripId,
             name: tripName || 'New Trip',
-            destination: destination || 'Unknown Destination',
+            destination: destLabel,
             startDate,
             endDate,
             image: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?q=80&w=2074&auto=format&fit=crop',
@@ -129,8 +146,9 @@ export function OnboardingWizard({ initialData, trigger }: OnboardingWizardProps
             legs: [leg],
             unscheduled: [],
             notes: [],
-            documents: []
-        };
+            documents: [],
+            attachedFlights: initialData?.flight ? [initialData.flight] : [],
+        } as any;
     };
 
     const handleCreate = (skipSuggestions = false) => {
@@ -140,6 +158,16 @@ export function OnboardingWizard({ initialData, trigger }: OnboardingWizardProps
             return;
         }
         const newTrip = generateMockTrip(skipSuggestions);
+        if (initialData?.flight) {
+            sessionStorage.setItem('wv_flight_context', JSON.stringify({
+                flightNumber: initialData.flight,
+                origin: initialData.origin ?? '',
+                destination: initialData.destination ?? destination,
+                destCode: initialData.destCode ?? '',
+                departureDate: newTrip.startDate,
+                passengers: pax.adults,
+            }));
+        }
         addTrip(newTrip);
         setOpen(false);
         router.push(`/trip/${newTrip.id}`);
@@ -154,6 +182,8 @@ export function OnboardingWizard({ initialData, trigger }: OnboardingWizardProps
             setPax({ infants: 0, children: 0, adults: initialData?.passengers || 1, elderly: 0 });
             setFamiliarity('');
             setSelectedVibes([]);
+        } else {
+            onOpen?.();
         }
         setOpen(isOpen);
     };

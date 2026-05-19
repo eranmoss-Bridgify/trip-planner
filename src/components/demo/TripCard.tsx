@@ -25,7 +25,7 @@ export function TripCard({ trip }: TripCardProps) {
             <CardContent className="pt-4 grid gap-2">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Calendar className="h-4 w-4" />
-                    <span>{new Date(trip.startDate).toLocaleDateString()} - {new Date(trip.endDate).toLocaleDateString()}</span>
+                    <span>{(() => { const [y,m,d] = trip.startDate.split('-').map(Number); return new Date(y,m-1,d).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}); })()} – {(() => { const [y,m,d] = trip.endDate.split('-').map(Number); return new Date(y,m-1,d).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}); })()}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <MapPin className="h-4 w-4" />

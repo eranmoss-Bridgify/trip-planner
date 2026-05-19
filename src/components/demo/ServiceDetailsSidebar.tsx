@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
-import { formatShortDate } from '@/lib/utils';
+import { formatShortDate, fmtPrice } from '@/lib/utils';
 import { useBridgifyAvailability } from '@/lib/api-client';
 
 interface ServiceDetailsSidebarProps {
@@ -30,9 +30,17 @@ interface ServiceDetailsSidebarProps {
 }
 
 export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, legId, defaultCheckIn, defaultCheckOut }: ServiceDetailsSidebarProps) {
-    const { addServiceToLeg, getTripById } = useTrips();
+    const { addServiceToLeg, getTripById, trips } = useTrips();
     const [currentImageIdx, setCurrentImageIdx] = useState(0);
     const [isAdding, setIsAdding] = useState(false);
+
+    // Marketplace mode: no trip/leg passed in — user picks them
+    const [mktTripId, setMktTripId] = useState<string>('');
+    const [mktLegId, setMktLegId] = useState<string>('');
+    const [mktDate, setMktDate] = useState<string>('');
+
+    const mktTrip = trips.find(t => t.id === mktTripId);
+    const mktLeg = mktTrip?.legs.find(l => l.id === mktLegId);
 
     // isHotel declared early — used in hooks below
     const isHotel = type === 'Hotel';
@@ -56,12 +64,14 @@ export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, 
     const [attractionAdults, setAttractionAdults] = useState(2);
     const [hasChecked, setHasChecked] = useState(false);
 
-    // Date inputs pre-filled from leg, user can adjust before checking
+    // Date inputs pre-filled from leg.
+    // Use .split('T')[0] directly — avoids new Date() UTC round-trip that
+    // shifts dates when the stored value has a time component (e.g. '2026-06-14T21:00:00Z').
     const defaultFrom = legData
-        ? new Date(legData.startDate).toISOString().split('T')[0]
+        ? legData.startDate.split('T')[0]
         : defaultCheckIn ?? new Date().toISOString().split('T')[0];
     const defaultTo = legData
-        ? new Date(legData.endDate).toISOString().split('T')[0]
+        ? legData.endDate.split('T')[0]
         : defaultCheckOut ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const [checkFrom, setCheckFrom] = useState(defaultFrom);
     const [checkTo, setCheckTo] = useState(defaultTo);
@@ -95,12 +105,15 @@ export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, 
             setLiveRooms([]);
             setAvailabilityError(null);
             setRateKey(null);
+            setMktTripId('');
+            setMktLegId('');
+            setMktDate('');
 
             const from = legData
-                ? new Date(legData.startDate).toISOString().split('T')[0]
+                ? legData.startDate.split('T')[0]
                 : defaultCheckIn ?? new Date().toISOString().split('T')[0];
             const to = legData
-                ? new Date(legData.endDate).toISOString().split('T')[0]
+                ? legData.endDate.split('T')[0]
                 : defaultCheckOut ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
             setCheckFrom(from);
             setCheckTo(to);
@@ -170,8 +183,13 @@ export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, 
             checkOut: `${format(dateRange.to || dateRange.from, 'yyyy-MM-dd')}T11:00:00Z`,
         } : undefined;
 
-        if (tripId && legId) {
-            addServiceToLeg(tripId, legId, customizedService, type!, dr);
+        const effectiveTripId = tripId || mktTripId;
+        const effectiveLegId = legId || mktLegId;
+        if (effectiveTripId && effectiveLegId) {
+            if (!isHotel && mktDate && !tripId) {
+                (customizedService as any).selectedDate = mktDate;
+            }
+            addServiceToLeg(effectiveTripId, effectiveLegId, customizedService, type!, dr);
         }
 
         setTimeout(() => {
@@ -181,6 +199,7 @@ export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, 
     };
 
     const hasTrip = Boolean(tripId && legId);
+    const mktReady = !hasTrip && Boolean(mktTripId && mktLegId);
 
     function formatSlotDate(dateStr: string) {
         const d = new Date(dateStr + 'T00:00:00');
@@ -377,7 +396,7 @@ export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, 
                                                     )}
                                                 </div>
                                                 <div className="text-right">
-                                                    <div className="font-bold">{room.pricePerNight} {room.currency}</div>
+                                                    <div className="font-bold">{fmtPrice(room.pricePerNight, room.currency)}</div>
                                                     <div className="text-xs text-muted-foreground">total for {nights} nights</div>
                                                 </div>
                                             </div>
@@ -444,7 +463,7 @@ export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, 
                                                 <Plus className="h-4 w-4" />
                                             </Button>
                                             {s.price > 0 && (
-                                                <span className="text-xs text-muted-foreground ml-1">× {s.price} {s.currency}</span>
+                                                <span className="text-xs text-muted-foreground ml-1">× {fmtPrice(s.price, s.currency)}</span>
                                             )}
                                         </div>
                                     </div>
@@ -531,17 +550,36 @@ export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, 
 
                                     {/* Fallback date picker (sandbox: no slot data) */}
                                     {availFailed && (
-                                        <div className="space-y-1.5">
-                                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Choose your date</label>
-                                            <input type="date" value={selectedSlotDate ?? ''} min={checkFrom} max={checkTo}
-                                                onChange={e => setSelectedSlotDate(e.target.value || null)}
-                                                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                            />
+                                        <div className="space-y-2">
+                                            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                                Live availability unavailable
+                                                {(availError as any)?.status ? ` (${(availError as any).status})` : ''}.
+                                                {(availError as any)?.body?.detail && (
+                                                    <span className="block mt-0.5 opacity-75">
+                                                        {typeof (availError as any).body.detail === 'string'
+                                                            ? (availError as any).body.detail
+                                                            : JSON.stringify((availError as any).body.detail)}
+                                                    </span>
+                                                )}
+                                                Pick a date manually to continue.
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Choose your date</label>
+                                                <input type="date" value={selectedSlotDate ?? ''} min={checkFrom} max={checkTo}
+                                                    onChange={e => setSelectedSlotDate(e.target.value || null)}
+                                                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                />
+                                            </div>
                                         </div>
                                     )}
 
                                     {/* No slots returned */}
-                                    {!availFailed && !isOpenVoucher && slots.length === 0 && (
+                                    {!availFailed && !isOpenVoucher && slots.length === 0 && !availUuid && (
+                                        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                                            Availability ID missing for this product.
+                                        </div>
+                                    )}
+                                    {!availFailed && !isOpenVoucher && slots.length === 0 && !!availUuid && (
                                         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
                                             No availability found for these dates. Try a different range.
                                         </div>
@@ -555,14 +593,47 @@ export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, 
                 </div>{/* end scrollable */}
 
                 {/* Footer — shrink-0 keeps it pinned below the scroll area */}
-                <div className="shrink-0 p-4 border-t bg-background/90 backdrop-blur-md">
-                    <div className="flex justify-between items-center gap-4">
+                <div className="shrink-0 border-t bg-background/90 backdrop-blur-md">
+                    {/* Marketplace trip/leg/date picker */}
+                    {!hasTrip && trips.length > 0 && (
+                        <div className="px-4 pt-3 pb-1 space-y-2 border-b">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Add to trip</p>
+                            <div className="grid grid-cols-2 gap-2">
+                                <Select value={mktTripId} onValueChange={v => { setMktTripId(v); setMktLegId(''); setMktDate(''); }}>
+                                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select trip" /></SelectTrigger>
+                                    <SelectContent>
+                                        {trips.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                                <Select value={mktLegId} onValueChange={v => { setMktLegId(v); setMktDate(''); }} disabled={!mktTripId}>
+                                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select leg" /></SelectTrigger>
+                                    <SelectContent>
+                                        {mktTrip?.legs.map(l => <SelectItem key={l.id} value={l.id}>{l.title || l.location}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            {mktLeg && (
+                                <Select value={mktDate} onValueChange={setMktDate}>
+                                    <SelectTrigger className="h-8 text-xs w-full"><SelectValue placeholder="Select day" /></SelectTrigger>
+                                    <SelectContent>
+                                        {mktLeg.days.map(d => {
+                                            const [y,m,day] = d.date.split('-').map(Number);
+                                            const label = new Date(y, m-1, day).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+                                            return <SelectItem key={d.date} value={d.date}>{label}</SelectItem>;
+                                        })}
+                                    </SelectContent>
+                                </Select>
+                            )}
+                        </div>
+                    )}
+
+                    <div className="flex justify-between items-center gap-4 p-4">
                         <div>
                             {isHotel && selectedRoomId ? (
                                 <>
                                     <span className="text-sm text-muted-foreground">Total price</span>
                                     <div className="text-2xl font-bold flex items-center gap-1">
-                                        {totalPrice} <span className="text-lg">{service.currency}</span>
+                                        {fmtPrice(totalPrice, service.currency)}
                                     </div>
                                 </>
                             ) : !isHotel && totalPrice > 0 ? (
@@ -573,23 +644,23 @@ export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, 
                                         {selectedTime && ` at ${selectedTime}`}
                                     </span>
                                     <div className="text-2xl font-bold flex items-center gap-1">
-                                        {totalPrice.toFixed(2)} <span className="text-lg">{service.currency}</span>
+                                        {fmtPrice(totalPrice, service.currency)}
                                     </div>
                                 </>
                             ) : (
                                 <div className="text-sm font-medium text-muted-foreground">
-                                    {isHotel ? 'Select a room to see pricing' : 'Select a date to continue'}
+                                    {isHotel ? 'Select a room to see pricing' : `From ${fmtPrice(s.price, s.currency)}`}
                                 </div>
                             )}
                         </div>
-                        {hasTrip && (
+                        {(hasTrip || mktReady) && (
                             <Button
                                 size="lg"
                                 className="flex-1 max-w-[200px]"
-                                disabled={!canAdd || isAdding}
+                                disabled={!canAdd || isAdding || (!hasTrip && !mktDate)}
                                 onClick={handleAdd}
                             >
-                                {isAdding ? 'Adding…' : isHotel ? 'Add Room to Trip' : 'Add to Trip'}
+                                {isAdding ? 'Adding…' : isHotel ? 'Add to Trip' : 'Add to Trip'}
                             </Button>
                         )}
                     </div>

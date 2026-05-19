@@ -1,6 +1,11 @@
 import type { BridgifyProduct } from './bridgify-types';
 import type { Attraction, AttractionCategory } from '@/types/services';
 
+const _coord = (v: unknown): number | undefined => {
+  const n = Number(v);
+  return isNaN(n) || n === 0 ? undefined : n;
+};
+
 const CATEGORY_MAP: Record<string, AttractionCategory> = {
   'culture': 'Museum',
   'sightseeing': 'Tour',
@@ -86,7 +91,9 @@ export function bridgifyToAttraction(product: BridgifyProduct): Attraction {
       ? product.supplier.charAt(0).toUpperCase() + product.supplier.slice(1)
       : 'Bridgify',
     isBestSeller: product.additional_info?.external_exclusive_fields?.best_seller ?? false,
-    availabilityUuid: product.uuid,
+    availabilityUuid: product.uuid || product.external_id,
     availabilityType: product.availability_type,
+    lat: _coord((product as any).geolocation?.lat ?? product.location?.lat),
+    lng: _coord((product as any).geolocation?.lng ?? product.location?.lng),
   };
 }

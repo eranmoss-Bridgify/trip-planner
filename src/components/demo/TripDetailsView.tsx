@@ -2,31 +2,35 @@
 
 import { useState, useEffect } from 'react';
 import { Trip, ACTIVE_TRIP_ID } from '@/lib/mock-data';
-// MapView component to be implemented or imported correctly later
+import { TripMapView } from './TripMapView';
+import { TripCalendarView } from './TripCalendarView';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TripLeg } from './TripLeg';
 import { DocumentsWallet } from './DocumentsWallet';
-import { FileText, Navigation, StickyNote, Plus, Calendar, Users, Pencil, List, Map as MapIcon, Plane, ShoppingBag, ShieldCheck, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { FileText, Navigation, StickyNote, Plus, Calendar, Users, Pencil, List, Map as MapIcon, Plane, ShoppingBag, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { FlightCard } from './FlightCard';
 import { useTrips } from '@/context/TripContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ShareDialog } from '@/components/demo/ShareDialog';
-import { formatShortDate } from '@/lib/utils';
+import { formatShortDate, fmtPrice } from '@/lib/utils';
 import { AddLegModal } from './AddLegModal';
+import { EditLegModal } from './EditLegModal';
 import { MarketplaceModal } from './MarketplaceModal';
 import { ServiceDetailsSidebar } from './ServiceDetailsSidebar';
 import { Hotel, Attraction } from '@/lib/mock-data';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
+import { AuthModal } from '@/components/auth/AuthModal';
+import { Save, CheckCheck } from 'lucide-react';
 
 export function TripDetailsView({ tripId }: { tripId?: string }) {
-    const { trips, addLegToTrip, checkoutTrip, removeLeg, removeTrip } = useTrips();
+    const { trips, addLegToTrip, updateLeg, splitLeg, removeLeg, removeTrip } = useTrips();
+    const router = useRouter();
+    const { user } = useAuth();
+    const [authModalOpen, setAuthModalOpen] = useState(false);
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
     const trip = tripId ? trips.find(t => t.id === tripId) : (trips.find(t => t.id === ACTIVE_TRIP_ID) || trips[0]);
 
     const [view, setView] = useState<'itinerary' | 'calendar' | 'map'>('itinerary');
@@ -35,7 +39,7 @@ export function TripDetailsView({ tripId }: { tripId?: string }) {
     const [tripName, setTripName] = useState(trip?.name || '');
     // Track active leg by index or ID:
     const [activeLegId, setActiveLegId] = useState<string | null>(trip?.legs?.[0]?.id || null);
-    const [isAddLegModalOpen, setIsAddLegModalOpen] = useState(false);
+    const [legModalMode, setLegModalMode] = useState<'add' | 'edit' | null>(null);
     const [isMarketplaceOpen, setIsMarketplaceOpen] = useState(false);
     const [marketplaceTab, setMarketplaceTab] = useState('all');
 
@@ -68,7 +72,7 @@ export function TripDetailsView({ tripId }: { tripId?: string }) {
     const activeLeg = trip.legs.find(l => l.id === currentActiveLegId);
 
     const handleAddLeg = () => {
-        setIsAddLegModalOpen(true);
+        setLegModalMode('add');
     };
 
     const handleSaveNewLeg = (title: string, locationName: string, startDate: string, endDate: string) => {
@@ -103,14 +107,46 @@ export function TripDetailsView({ tripId }: { tripId?: string }) {
 
     const lastLeg = trip.legs[trip.legs.length - 1];
     const defaultStartDateForNewLeg = lastLeg ? lastLeg.endDate : trip.startDate;
+    const defaultEndDateForNewLeg = (() => {
+        const [y, m, d] = defaultStartDateForNewLeg.split('-').map(Number);
+        const end = new Date(y, m - 1, d + 3);
+        return `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+    })();
+    const newLegBlank = {
+        id: '__new__',
+        title: '',
+        location: '',
+        startDate: defaultStartDateForNewLeg,
+        endDate: defaultEndDateForNewLeg,
+        hotels: [],
+        arrivalTransfer: null,
+        days: [],
+    };
 
     return (
         <div className="container px-4 md:px-6 py-8 space-y-8">
-            <AddLegModal
-                isOpen={isAddLegModalOpen}
-                onClose={() => setIsAddLegModalOpen(false)}
-                onAddLeg={handleSaveNewLeg}
-                defaultStartDate={defaultStartDateForNewLeg}
+<EditLegModal
+                isOpen={legModalMode !== null}
+                onClose={() => setLegModalMode(null)}
+                leg={legModalMode === 'add' ? newLegBlank as any : (activeLeg ?? newLegBlank as any)}
+                isNew={legModalMode === 'add'}
+                onUpdate={(updates) => {
+                    if (legModalMode === 'add') {
+                        handleSaveNewLeg(
+                            updates.title ?? '',
+                            updates.location ?? '',
+                            updates.startDate ?? defaultStartDateForNewLeg,
+                            updates.endDate ?? defaultEndDateForNewLeg,
+                        );
+                    } else if (activeLeg) {
+                        updateLeg(trip.id, activeLeg.id, updates);
+                    }
+                    setLegModalMode(null);
+                }}
+                onSplit={(splitDate, newCity) => {
+                    if (activeLeg) splitLeg(trip.id, activeLeg.id, splitDate, newCity);
+                    setLegModalMode(null);
+                }}
             />
 
             <MarketplaceModal
@@ -129,6 +165,20 @@ export function TripDetailsView({ tripId }: { tripId?: string }) {
                 type={selectedServiceType}
                 tripId={trip.id}
                 legId={currentActiveLegId}
+            />
+            <AuthModal
+                open={authModalOpen}
+                onOpenChange={setAuthModalOpen}
+                onAuthenticated={async () => {
+                    setSaveStatus('saving');
+                    const res = await fetch('/api/trips', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ trips }),
+                    });
+                    setSaveStatus(res.ok ? 'saved' : 'idle');
+                    if (res.ok) setTimeout(() => setSaveStatus('idle'), 3000);
+                }}
             />
             {/* Trip Header */}
             <div className="flex flex-col gap-6">
@@ -244,18 +294,28 @@ export function TripDetailsView({ tripId }: { tripId?: string }) {
                             {/* Browser-like Tabs for Legs */}
                             <div className="flex items-center gap-2 border-b pb-4 overflow-x-auto">
                                 {trip.legs?.map((leg) => (
-                                    <button
-                                        key={leg.id}
-                                        onClick={() => setActiveLegId(leg.id)}
-                                        className={`px-4 py-2 rounded-t-lg border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${currentActiveLegId === leg.id ? 'border-primary text-foreground bg-muted/30' : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/10'}`}
-                                    >
-                                        <div className="flex flex-col items-start">
-                                            <span>{leg.title}</span>
-                                            <span className="text-[10px] font-normal opacity-70 mt-0.5">
-                                                {formatShortDate(leg.startDate)} - {formatShortDate(leg.endDate)}
-                                            </span>
-                                        </div>
-                                    </button>
+                                    <div key={leg.id} className="flex items-center group">
+                                        <button
+                                            onClick={() => setActiveLegId(leg.id)}
+                                            className={`px-4 py-2 rounded-t-lg border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${currentActiveLegId === leg.id ? 'border-primary text-foreground bg-muted/30' : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/10'}`}
+                                        >
+                                            <div className="flex flex-col items-start">
+                                                <span>{leg.title}</span>
+                                                <span className="text-[10px] font-normal opacity-70 mt-0.5">
+                                                    {formatShortDate(leg.startDate)} - {formatShortDate(leg.endDate)}
+                                                </span>
+                                            </div>
+                                        </button>
+                                                        {currentActiveLegId === leg.id && (
+                                            <button
+                                                onClick={() => setLegModalMode('edit')}
+                                                className="ml-1 p-1 rounded hover:bg-muted/60 text-muted-foreground hover:text-foreground transition-colors"
+                                                title="Edit destination"
+                                            >
+                                                <Pencil className="h-3 w-3" />
+                                            </button>
+                                        )}
+                                    </div>
                                 ))}
                                 <Button variant="ghost" size="icon" onClick={handleAddLeg} className="rounded-full h-8 w-8 ml-2 text-muted-foreground">
                                     <Plus className="h-4 w-4" />
@@ -282,18 +342,12 @@ export function TripDetailsView({ tripId }: { tripId?: string }) {
                             </div>
                         </div>
                     ) : view === 'calendar' ? (
-                        <div className="rounded-xl overflow-hidden border bg-card shadow-sm h-[600px] relative">
-                            {/* Calendar View Placeholder */}
-                            <div className="flex items-center justify-center h-full text-muted-foreground">
-                                Calendar view coming soon!
-                            </div>
+                        <div className="rounded-xl overflow-hidden border bg-card shadow-sm h-[680px] relative">
+                            <TripCalendarView trip={trip} />
                         </div>
                     ) : (
                         <div className="rounded-xl overflow-hidden border bg-card shadow-sm h-[600px] relative">
-                            {/* MapView Placeholder */}
-                            <div className="flex items-center justify-center h-full text-muted-foreground">
-                                Map view coming soon!
-                            </div>
+                            <TripMapView trip={trip} />
                         </div>
                     )}
                 </div>
@@ -360,30 +414,53 @@ export function TripDetailsView({ tripId }: { tripId?: string }) {
                                     {plannedItems.map((item, idx) => (
                                         <div key={idx} className="flex justify-between items-start text-sm">
                                             <span className="text-blue-900 line-clamp-2 pr-2">{item.name}</span>
-                                            <span className="text-blue-950 font-medium whitespace-nowrap">{item.price} {item.currency}</span>
+                                            <span className="text-blue-950 font-medium whitespace-nowrap">{fmtPrice(item.price, item.currency)}</span>
                                         </div>
                                     ))}
                                 </div>
                                 <div className="flex justify-between items-end mb-4 pt-3 border-t border-blue-200/50">
                                     <div className="text-sm font-medium text-blue-800">Total Due</div>
-                                    <div className="text-xl font-bold text-blue-950">{totalPlannedPrice} {currency}</div>
+                                    <div className="text-xl font-bold text-blue-950">{fmtPrice(totalPlannedPrice, currency)}</div>
                                 </div>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button className="bg-green-600 hover:bg-green-700 text-white shadow-sm w-full h-9 flex justify-center items-center gap-2">
-                                            <ShieldCheck className="h-4 w-4" /> Checkout <ChevronDown className="h-4 w-4 opacity-50" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-[220px]">
-                                        <DropdownMenuItem onClick={() => alert("Checkout flow coming soon.")}>
-                                            Standard Checkout
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => checkoutTrip(trip.id)} className="text-green-600 font-medium">
-                                            <CheckCircle2 className="h-4 w-4 mr-2" /> Buy All (Test Mode)
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
+                                <Button
+                                    className="bg-green-600 hover:bg-green-700 text-white shadow-sm w-full h-9 flex justify-center items-center gap-2"
+                                    onClick={() => router.push('/cart')}
+                                >
+                                    <ShieldCheck className="h-4 w-4" /> Checkout
+                                </Button>
                             </div>
+                        );
+                    })()}
+
+                    {/* Save Itinerary */}
+                    {(() => {
+                        const saveItinerary = async () => {
+                            setSaveStatus('saving');
+                            const res = await fetch('/api/trips', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ trips }),
+                            });
+                            setSaveStatus(res.ok ? 'saved' : 'idle');
+                            if (res.ok) setTimeout(() => setSaveStatus('idle'), 3000);
+                        };
+
+                        return (
+                            <Button
+                                variant="outline"
+                                className="w-full gap-2 border-primary/30 text-primary hover:bg-primary/5"
+                                disabled={saveStatus === 'saving'}
+                                onClick={() => {
+                                    if (!user) { setAuthModalOpen(true); return; }
+                                    saveItinerary();
+                                }}
+                            >
+                                {saveStatus === 'saved'
+                                    ? <><CheckCheck className="h-4 w-4 text-green-600" /> Saved!</>
+                                    : saveStatus === 'saving'
+                                    ? <><Save className="h-4 w-4 animate-pulse" /> Saving…</>
+                                    : <><Save className="h-4 w-4" /> Save Itinerary</>}
+                            </Button>
                         );
                     })()}
 
@@ -442,12 +519,20 @@ export function TripDetailsView({ tripId }: { tripId?: string }) {
                 </div>
             </div>
 
-            <div className="flex justify-center mt-12 mb-8">
+            <div className="flex justify-center gap-3 mt-12 mb-8">
                 <Button variant="destructive" onClick={() => {
                     removeTrip(trip.id);
-                    window.location.href = '/'; // Go back to dashboard after deleting
+                    window.location.href = '/';
                 }}>
-                    Delete ('testing')
+                    Delete trip
+                </Button>
+                <Button variant="outline" className="text-muted-foreground" onClick={() => {
+                    if (confirm('Reset all trip data to defaults? This cannot be undone.')) {
+                        localStorage.removeItem('wandervault_trips');
+                        window.location.reload();
+                    }
+                }}>
+                    Reset trip data
                 </Button>
             </div>
         </div >

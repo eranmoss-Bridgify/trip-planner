@@ -2,8 +2,8 @@ import type { TripDay } from '@/lib/mock-data';
 import type { Attraction } from '@/types/services';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Hotel as HotelIcon, Camera, Bus, MapPin, Clock, MoreHorizontal, BedDouble, ShieldCheck, ShoppingBag, CheckCircle2, Trash2, GripVertical, Calendar, AlertCircle } from 'lucide-react';
-import { cn, formatShortDate, VIBE_TO_SEARCH, rotateArray } from '@/lib/utils';
+import { Plus, Hotel as HotelIcon, Camera, Bus, MapPin, Clock, MoreHorizontal, BedDouble, ShieldCheck, ShoppingBag, CheckCircle2, Trash2, GripVertical, Calendar, AlertCircle, Star } from 'lucide-react';
+import { cn, formatShortDate, VIBE_TO_SEARCH, rotateArray, fmtPrice } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { Droppable, Draggable } from '@hello-pangea/dnd';
@@ -20,6 +20,7 @@ import { RecommendationCarousel } from './RecommendationCarousel';
 import { Sparkles } from 'lucide-react';
 import { useBridgifySearch } from '@/lib/api-client';
 import { bridgifyToAttraction } from '@/lib/bridgify-adapter';
+import { useState, useEffect, useRef } from 'react';
 
 interface ItineraryDayProps {
     day: TripDay;
@@ -84,10 +85,41 @@ export function ItineraryDay({ day, tripId, index, legId, checkIns, checkOuts, o
         .filter((s: any) => !trip?.dismissedRecommendations?.includes(s.id))
         .slice(0, 4);
 
-    // Carousel title reflects active vibes
-    const carouselTitle = vibeTerms.length > 1
+    // Fallback carousel title from vibes
+    const vibeCarouselTitle = vibeTerms.length > 1
         ? `${vibeTerms.slice(0, 2).map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(' & ')} picks for Day ${index + 1}`
         : `${term0.charAt(0).toUpperCase() + term0.slice(1)} recommendations for Day ${index + 1}`;
+
+    // LLM-generated title keyed by sorted activity IDs — only refetches when activities change
+    const [llmTitle, setLlmTitle] = useState<string | null>(null);
+    const titleCacheRef = useRef<{ key: string; title: string } | null>(null);
+
+    const activityKey = day.activities.map(a => a.id).sort().join(',');
+
+    useEffect(() => {
+        if (!day.activities.length) { setLlmTitle(null); return; }
+        if (titleCacheRef.current?.key === activityKey) { setLlmTitle(titleCacheRef.current.title); return; }
+
+        fetch('/api/day-title', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                activities: day.activities.map(a => ({ name: a.name, category: (a as any).category })),
+                destination,
+                dayIndex: index,
+            }),
+        })
+            .then(r => r.json())
+            .then(({ title }) => {
+                if (title) {
+                    titleCacheRef.current = { key: activityKey, title };
+                    setLlmTitle(title);
+                }
+            })
+            .catch(() => {/* silently fall back to vibe title */});
+    }, [activityKey, destination, index]);
+
+    const carouselTitle = llmTitle ?? vibeCarouselTitle;
 
     const handleSurpriseMe = () => {
         const available = allAttractions.filter((a: any) =>
@@ -104,7 +136,7 @@ export function ItineraryDay({ day, tripId, index, legId, checkIns, checkOuts, o
     return (
         <div className="pl-4 sm:pl-0">
             <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-lg">Day {index + 1} - {new Date(day.date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</h3>
+                <h3 className="font-bold text-lg">Day {index + 1} - {(() => { const [y,m,d] = day.date.split('T')[0].split('-').map(Number); return new Date(y, m-1, d).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' }); })()}</h3>
                 <div className="flex items-center gap-2">
                     <Button
                         size="sm"
@@ -160,12 +192,12 @@ export function ItineraryDay({ day, tripId, index, legId, checkIns, checkOuts, o
             <Droppable droppableId={index.toString()}>
                 {(provided: any) => (
                     <div
-                        className="space-y-4 min-h-[100px]"
+                        className="grid grid-cols-2 gap-3 min-h-[100px]"
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                     >
                         {day.activities.length === 0 ? (
-                            <div className="p-6 border border-dashed rounded-xl bg-muted/10 flex flex-col items-center justify-center text-center gap-2">
+                            <div className="col-span-2 p-6 border border-dashed rounded-xl bg-muted/10 flex flex-col items-center justify-center text-center gap-2">
                                 <p className="text-muted-foreground text-sm">No activities planned for this day.</p>
                                 <Link href={`/trip/${tripId}/explore?date=${day.date}`}>
                                     <Button variant="link" className="text-primary">Explore recommendations</Button>
@@ -180,7 +212,7 @@ export function ItineraryDay({ day, tripId, index, legId, checkIns, checkOuts, o
                                     <Draggable key={activity.id} draggableId={activity.id} index={i}>
                                         {(provided: any) => (
                                             <Card
-                                                className={cn("flex flex-row overflow-hidden bg-background transition-shadow", isAnyBooked ? "opacity-95" : "hover:shadow-md")}
+                                                className={cn("overflow-hidden bg-background transition-shadow group cursor-pointer", isAnyBooked ? "opacity-95" : "hover:shadow-md")}
                                                 onClick={() => {
                                                     if (!activity.id.startsWith('manual-') && onOpenServiceDetails) {
                                                         onOpenServiceDetails(activity, (activity as Attraction).category ? 'Attraction' : 'Hotel');
@@ -190,38 +222,54 @@ export function ItineraryDay({ day, tripId, index, legId, checkIns, checkOuts, o
                                                 {...provided.draggableProps}
                                                 style={{ ...provided.draggableProps.style }}
                                             >
+                                                {/* Drag handle — thin top bar */}
                                                 <div
                                                     {...provided.dragHandleProps}
-                                                    className="flex items-center justify-center px-1.5 bg-muted/20 hover:bg-muted/50 transition-colors cursor-grab active:cursor-grabbing border-r shrink-0"
+                                                    className="flex items-center justify-center py-1 bg-muted/30 hover:bg-muted/60 transition-colors cursor-grab active:cursor-grabbing border-b"
                                                     onClick={(e) => e.stopPropagation()}
                                                 >
-                                                    <GripVertical className="h-4 w-4 text-muted-foreground/40 hover:text-muted-foreground" />
+                                                    <GripVertical className="h-3.5 w-3.5 rotate-90 text-muted-foreground/40 hover:text-muted-foreground" />
                                                 </div>
 
-                                                <div className="w-20 shrink-0 bg-muted">
-                                                    <img src={activity.image} alt={activity.name} className="w-full h-full object-cover" />
+                                                {/* Image */}
+                                                <div className="relative h-40 w-full bg-muted overflow-hidden">
+                                                    <img src={activity.image} alt={activity.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+
+                                                    {/* Category — top right */}
+                                                    <Badge className="absolute top-2 right-2 bg-background/80 text-foreground backdrop-blur text-[10px] px-1.5">
+                                                        {(activity as Attraction).category || 'Hotel'}
+                                                    </Badge>
+
+                                                    {/* Best Seller — top left */}
+                                                    {(activity as any).isBestSeller && (
+                                                        <Badge className="absolute top-2 left-2 bg-amber-500 text-white border-0 gap-1 text-[10px]">
+                                                            <Star className="h-2.5 w-2.5 fill-white" /> Best Seller
+                                                        </Badge>
+                                                    )}
+
+                                                    {/* Status — bottom left */}
+                                                    {isPurchased ? (
+                                                        <Badge className="absolute bottom-2 left-2 bg-green-600 hover:bg-green-700 gap-1 px-1.5 text-[10px] border-transparent">
+                                                            <ShieldCheck className="h-2.5 w-2.5" /> Purchased
+                                                        </Badge>
+                                                    ) : isBookedManual ? (
+                                                        <Badge variant="outline" className="absolute bottom-2 left-2 text-green-700 border-green-600 bg-green-50/90 gap-1 px-1.5 text-[10px]">
+                                                            <CheckCircle2 className="h-2.5 w-2.5" /> Booked
+                                                        </Badge>
+                                                    ) : activity.bookingStatus === 'planned' ? (
+                                                        <Badge className="absolute bottom-2 left-2 gap-1 text-blue-700 bg-blue-100/90 border-blue-200 px-1.5 text-[10px]">
+                                                            <ShoppingBag className="h-2.5 w-2.5" /> In Cart
+                                                        </Badge>
+                                                    ) : null}
                                                 </div>
 
-                                                <div className="flex-1 p-3 flex flex-col gap-1 min-w-0">
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <div className="flex items-center gap-1.5">
-                                                            {isPurchased ? (
-                                                                <Badge variant="default" className="bg-green-600 hover:bg-green-700 gap-1 px-1.5 py-0 text-[10px] border-transparent">
-                                                                    <ShieldCheck className="h-2.5 w-2.5" /> Purchased
-                                                                </Badge>
-                                                            ) : isBookedManual ? (
-                                                                <Badge variant="outline" className="text-green-700 border-green-600 bg-green-50 gap-1 px-1.5 py-0 text-[10px]">
-                                                                    <CheckCircle2 className="h-2.5 w-2.5" /> Booked
-                                                                </Badge>
-                                                            ) : activity.bookingStatus === 'planned' ? (
-                                                                <Badge variant="secondary" className="gap-1 text-blue-700 bg-blue-100/50 px-1.5 py-0 text-[10px]">
-                                                                    <ShoppingBag className="h-2.5 w-2.5" /> In Cart
-                                                                </Badge>
-                                                            ) : null}
-                                                        </div>
+                                                {/* Body */}
+                                                <div className="p-3 flex flex-col gap-2">
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <h4 className="font-semibold text-sm leading-tight line-clamp-2">{activity.name}</h4>
                                                         <DropdownMenu>
                                                             <DropdownMenuTrigger asChild>
-                                                                <Button variant="ghost" className="h-7 w-7 p-0 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                                                <Button variant="ghost" className="h-7 w-7 p-0 shrink-0 -mt-0.5" onClick={(e) => e.stopPropagation()}>
                                                                     <span className="sr-only">Open menu</span>
                                                                     <MoreHorizontal className="h-4 w-4" />
                                                                 </Button>
@@ -283,20 +331,35 @@ export function ItineraryDay({ day, tripId, index, legId, checkIns, checkOuts, o
                                                         </DropdownMenu>
                                                     </div>
 
-                                                    <h4 className="font-semibold text-sm leading-tight truncate">{activity.name}</h4>
+                                                    {/* Rating */}
+                                                    {activity.rating > 0 && (
+                                                        <div className="flex items-center gap-1 text-xs font-semibold text-amber-600">
+                                                            <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+                                                            {activity.rating}
+                                                        </div>
+                                                    )}
 
-                                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                        {(activity as Attraction).category ? <Camera className="h-3 w-3 shrink-0" /> : <HotelIcon className="h-3 w-3 shrink-0" />}
-                                                        <span>{(activity as Attraction).category || 'Hotel'}</span>
+                                                    {/* Tags */}
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1 bg-primary/10 text-primary border-primary/20">
+                                                            {(activity as Attraction).category ? <Camera className="h-2.5 w-2.5" /> : <HotelIcon className="h-2.5 w-2.5" />}
+                                                            {(activity as Attraction).category || 'Hotel'}
+                                                        </Badge>
                                                         {(activity as Attraction).duration && (
-                                                            <>
-                                                                <span className="text-border">•</span>
-                                                                <Clock className="h-3 w-3 shrink-0" />
-                                                                <span>{(activity as Attraction).duration}</span>
-                                                            </>
+                                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1 text-muted-foreground">
+                                                                <Clock className="h-2.5 w-2.5 shrink-0" />
+                                                                {(activity as Attraction).duration}
+                                                            </Badge>
+                                                        )}
+                                                        {activity.location && (
+                                                            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                                                <MapPin className="h-2.5 w-2.5 shrink-0" />
+                                                                <span className="truncate max-w-[120px]">{activity.location}</span>
+                                                            </span>
                                                         )}
                                                     </div>
 
+                                                    {/* Date mismatch warning */}
                                                     {(activity as any).date && (() => {
                                                         const bookedDate = (activity as any).date as string;
                                                         const isMismatch = bookedDate.split('T')[0] !== day.date.split('T')[0];
@@ -311,18 +374,19 @@ export function ItineraryDay({ day, tripId, index, legId, checkIns, checkOuts, o
                                                         );
                                                     })()}
 
+                                                    {/* Price row */}
                                                     {(() => {
                                                         const trip = trips.find(t => t.id === tripId);
                                                         const adults = trip?.passengers?.adults ?? 1;
                                                         const children = trip?.passengers?.children ?? 0;
                                                         const perPax = activity.price * adults + activity.price * 0.7 * children;
                                                         return (
-                                                            <div className="flex items-center justify-between pt-1 border-t border-muted mt-1">
+                                                            <div className="flex items-center justify-between pt-2 border-t border-muted mt-1">
                                                                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                                                     <span>{adults} Adult{adults !== 1 ? 's' : ''}</span>
                                                                     {children > 0 && <><span className="text-border">•</span><span>{children} Child{children !== 1 ? 'ren' : ''}</span></>}
                                                                 </div>
-                                                                <span className="font-bold text-sm">{Math.round(perPax)} {activity.currency}</span>
+                                                                <span className="font-bold text-sm text-primary">{fmtPrice(perPax, activity.currency)}</span>
                                                             </div>
                                                         );
                                                     })()}

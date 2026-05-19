@@ -83,7 +83,7 @@ test.describe('Trip — Activity placed on selected availability date', () => {
     // TripContext persists to localStorage on every state change, so we can
     // read the final data without navigating away.
     const tripsData: any[] = await page.evaluate(
-      () => JSON.parse(localStorage.getItem('elalTrips') ?? '[]'),
+      () => JSON.parse(localStorage.getItem('wandervault_trips') ?? '[]'),
     );
     const trip = tripsData.find((t: any) => t.id === 't1');
     const leg = trip?.legs?.[0];
@@ -178,7 +178,7 @@ test.describe('Trip — Activity placed on selected availability date', () => {
 
     // Verify an activity was added to the trip (any day)
     const tripsData: any[] = await page.evaluate(
-      () => JSON.parse(localStorage.getItem('elalTrips') ?? '[]'),
+      () => JSON.parse(localStorage.getItem('wandervault_trips') ?? '[]'),
     );
     const trip = tripsData.find((t: any) => t.id === 't1');
     const leg = trip?.legs?.[0];

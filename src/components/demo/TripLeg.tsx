@@ -88,31 +88,19 @@ export function TripLeg({ leg, tripId, onOpenMarketplace, onOpenServiceDetails, 
         if (trip) {
             const updatedLegs = trip.legs.map(l => {
                 if (l.id === leg.id) {
-                    const start = new Date(`${editedStartDate}T00:00:00Z`);
-                    const end = new Date(`${editedEndDate}T00:00:00Z`);
-
+                    const addDays = (s: string, n: number) => { const [y,m,d] = s.split('-').map(Number); const ms = Date.UTC(y,m-1,d)+n*86400000; const dt=new Date(ms); return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth()+1).padStart(2,'0')}-${String(dt.getUTCDate()).padStart(2,'0')}`; };
                     const newDays = [];
-                    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                        const dateStr = d.toISOString();
-                        const existingDay = l.days?.find(day => day.date.split('T')[0] === dateStr.split('T')[0]);
-
-                        if (existingDay) {
-                            newDays.push(existingDay);
-                        } else {
-                            newDays.push({
-                                date: dateStr,
-                                location: editedTitle,
-                                activities: []
-                            });
-                        }
+                    for (let cur = editedStartDate; cur <= editedEndDate; cur = addDays(cur, 1)) {
+                        const existingDay = l.days?.find(day => day.date.slice(0, 10) === cur);
+                        newDays.push(existingDay ? { ...existingDay, date: cur } : { date: cur, location: editedLocation, activities: [] });
                     }
 
                     return {
                         ...l,
                         title: editedTitle,
                         location: editedLocation,
-                        startDate: `${editedStartDate}T00:00:00Z`,
-                        endDate: `${editedEndDate}T00:00:00Z`,
+                        startDate: editedStartDate,
+                        endDate: editedEndDate,
                         days: newDays
                     };
                 }

@@ -6,8 +6,11 @@ import type { BridgifySearchResponse, BridgifyDetailResponse, BridgifyAvailabili
 async function fetcher<T>(url: string): Promise<T> {
   const res = await fetch(url);
   if (!res.ok) {
+    let body: any = null;
+    try { body = await res.json(); } catch { /* ignore */ }
     const err = new Error(`API error: ${res.status}`);
     (err as any).status = res.status;
+    (err as any).body = body;
     throw err;
   }
   return res.json();

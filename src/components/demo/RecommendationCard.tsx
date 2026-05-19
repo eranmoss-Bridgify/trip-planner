@@ -2,7 +2,7 @@ import { Plus, X, Star, MapPin } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Hotel, Attraction } from '@/lib/mock-data';
-import { cn } from '@/lib/utils';
+import { cn, fmtPrice } from '@/lib/utils';
 
 interface RecommendationCardProps {
     item: Hotel | Attraction;
@@ -55,7 +55,7 @@ export function RecommendationCard({ item, onDismiss, onClick }: RecommendationC
 
                     <div className="text-[11px] font-semibold">
                         <span className="text-muted-foreground font-normal">From </span>
-                        {item.price} {item.currency}
+                        {fmtPrice(item.price, item.currency)}
                     </div>
                 </div>
 

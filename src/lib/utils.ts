@@ -32,6 +32,13 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/** Format a price number — always 2 decimal places for cents, no decimals for whole numbers */
+export function fmtPrice(amount: number | null | undefined, currency?: string): string {
+  if (amount == null) return '';
+  const num = amount % 1 === 0 ? amount.toFixed(0) : amount.toFixed(2);
+  return currency ? `${num} ${currency}` : num;
+}
+
 export function formatShortDate(dateString: string | Date): string {
   const d = new Date(dateString);
   const day = String(d.getUTCDate()).padStart(2, '0');

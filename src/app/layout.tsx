@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Header } from "@/components/layout/Header";
-import { Footer } from "@/components/layout/Footer";
+import { AppToolbar } from "@/components/layout/AppToolbar";
 import { TripProvider } from "@/context/TripContext";
+import { AuthProvider } from "@/context/AuthContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,13 +30,14 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen bg-muted/20`}
       >
-        <TripProvider>
-          <Header />
-          <main className="flex-1">
-            {children}
-          </main>
-          <Footer />
-        </TripProvider>
+        <AuthProvider>
+          <TripProvider>
+            <AppToolbar />
+            <main className="flex-1">
+              {children}
+            </main>
+          </TripProvider>
+        </AuthProvider>
       </body>
     </html>
   );

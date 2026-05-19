@@ -1,206 +1,152 @@
 'use client';
 
-import { useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Button } from '@/components/ui/button';
-import { TripCard } from '@/components/demo/TripCard';
-import { OnboardingWizard } from '@/components/demo/OnboardingWizard';
+import { useEffect, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useTrips } from '@/context/TripContext';
-import { Plane, MapPin, Calendar, ChevronRight, Plus } from 'lucide-react';
-import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Loader2, MapPin, Calendar, Users, ArrowRight, Map } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { OnboardingWizard } from '@/components/demo/OnboardingWizard';
 
-// Flight context from the airline page — in production from the airline's booking system.
-const FLIGHT_CONTEXT = {
-  origin: 'TLV',
-  originCity: 'Tel Aviv',
-  destination: 'BCN',
-  destinationCity: 'Barcelona',
-  destinationCountry: 'Spain',
-  flightNumber: 'WV-2026',
-  departureTime: '2026-06-15T09:00:00Z',
-  arrivalTime: '2026-06-15T13:00:00Z',
-  passengers: 1,
-  class: 'Economy',
-  airline: 'WV',
-};
+function WelcomeScreen() {
+    const searchParams = useSearchParams();
+    const router = useRouter();
+    const { trips, isLoaded } = useTrips();
 
-export default function Home() {
-  const { trips } = useTrips();
+    const destination = searchParams.get('destination');
+    const dateFrom = searchParams.get('date_from');
+    const dateTo = searchParams.get('date_to');
+    const passengers = Math.max(1, parseInt(searchParams.get('passengers') || '1'));
+    const flight = searchParams.get('flight');
+    const origin = searchParams.get('origin') || '';
+    const destCode = searchParams.get('dest_code') || '';
 
-  useEffect(() => {
-    sessionStorage.setItem('wv_flight_context', JSON.stringify(FLIGHT_CONTEXT));
-  }, []);
+    const hasParams = Boolean(destination && dateFrom);
 
-  const arrivalDate = new Date(FLIGHT_CONTEXT.arrivalTime);
-  const wizardData = {
-    destination: FLIGHT_CONTEXT.destinationCity,
-    dateFrom: arrivalDate,
-    dateTo: new Date(arrivalDate.getTime() + 5 * 24 * 60 * 60 * 1000),
-    passengers: FLIGHT_CONTEXT.passengers,
-  };
+    // No params at all → go to trips list
+    useEffect(() => {
+        if (isLoaded && !hasParams) {
+            router.replace('/trips');
+        }
+    }, [isLoaded, hasParams]);
 
-  const container = {
-    hidden: { opacity: 0 },
-    show: { opacity: 1, transition: { staggerChildren: 0.1 } },
-  };
+    // Find existing trip for these params
+    const existingTrip = hasParams
+        ? trips.find(t =>
+            t.destination?.toLowerCase().includes((destination ?? '').toLowerCase()) &&
+            t.startDate === dateFrom)
+        : null;
 
-  const item = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0 },
-  };
+    const wizardInitialData = {
+        destination,
+        destCode,
+        dateFrom: dateFrom ? (() => { const [y,m,d] = dateFrom.split('-').map(Number); return new Date(y, m-1, d); })() : undefined,
+        dateTo: dateTo ? (() => { const [y,m,d] = dateTo.split('-').map(Number); return new Date(y, m-1, d); })() : undefined,
+        passengers,
+        flight: flight || undefined,
+        origin: origin || undefined,
+    };
 
-  return (
-    <div className="min-h-screen">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-primary/90 via-primary to-primary/80 text-primary-foreground">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjA1KSIvPjwvc3ZnPg==')] opacity-50" />
-        <div className="container px-4 md:px-6 py-16 md:py-24 relative z-10">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="max-w-2xl space-y-6"
-          >
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-sm font-medium backdrop-blur-sm">
-              <Plane className="h-4 w-4" />
-              Welcome aboard
+    if (!isLoaded || (!hasParams)) {
+        return (
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight">
-              Your next adventure starts here
-            </h1>
-            <p className="text-lg md:text-xl opacity-90">
-              Plan your perfect trip with curated experiences, tours, and activities at your destination.
-            </p>
-            <div className="flex flex-wrap gap-4">
-              <OnboardingWizard
-                initialData={wizardData}
-                trigger={
-                  <Button size="lg" variant="secondary" className="gap-2 text-base">
-                    <Plus className="h-5 w-5" /> Plan a New Trip
-                  </Button>
-                }
-              />
-              <Button asChild size="lg" variant="outline" className="gap-2 text-base bg-white/10 border-white/20 hover:bg-white/20">
-                <Link href="/marketplace">
-                  Browse Experiences <ChevronRight className="h-5 w-5" />
-                </Link>
-              </Button>
+        );
+    }
+
+    // Format dates for display
+    const fmtDate = (s: string) => {
+        const [y, m, d] = s.split('-').map(Number);
+        return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+
+    return (
+        <div className="min-h-[calc(100vh-0px)] flex flex-col">
+            {/* Hero */}
+            <div
+                className="relative flex-1 flex flex-col items-center justify-center text-white text-center px-6 py-20"
+                style={{
+                    backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.6) 100%), url(https://images.unsplash.com/photo-1539037116277-4db20889f2d4?q=80&w=2070&auto=format&fit=crop)',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                }}
+            >
+                <motion.div
+                    initial={{ opacity: 0, y: 24 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6 }}
+                    className="max-w-xl space-y-6"
+                >
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 text-sm font-medium backdrop-blur-sm">
+                        <MapPin className="h-4 w-4" /> {destination}
+                    </div>
+
+                    <h1 className="text-4xl md:text-5xl font-bold leading-tight">
+                        {existingTrip ? `Continue your ${destination} trip` : `Plan your ${destination} trip`}
+                    </h1>
+
+                    {/* Trip info pills */}
+                    <div className="flex flex-wrap justify-center gap-3 text-sm">
+                        {dateFrom && (
+                            <div className="flex items-center gap-1.5 bg-white/15 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                                <Calendar className="h-4 w-4" />
+                                {fmtDate(dateFrom)}{dateTo && dateTo !== dateFrom ? ` – ${fmtDate(dateTo)}` : ''}
+                            </div>
+                        )}
+                        <div className="flex items-center gap-1.5 bg-white/15 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                            <Users className="h-4 w-4" />
+                            {passengers} passenger{passengers !== 1 ? 's' : ''}
+                        </div>
+                        {flight && (
+                            <div className="flex items-center gap-1.5 bg-white/15 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                                Flight {flight}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+                        <OnboardingWizard
+                            initialData={wizardInitialData}
+                            trigger={
+                                <Button size="lg" className="gap-2 text-base px-8">
+                                    <ArrowRight className="h-5 w-5" /> Start Planning
+                                </Button>
+                            }
+                        />
+                        {existingTrip && (
+                            <Button
+                                size="lg"
+                                variant="outline"
+                                className="gap-2 text-base bg-white/10 border-white/30 hover:bg-white/20 text-white hover:text-white"
+                                onClick={() => router.push(`/trip/${existingTrip.id}`)}
+                            >
+                                <ArrowRight className="h-5 w-5" /> Continue Existing
+                            </Button>
+                        )}
+                        <Button
+                            size="lg"
+                            variant="outline"
+                            className="gap-2 text-base bg-white/10 border-white/30 hover:bg-white/20 text-white hover:text-white"
+                            onClick={() => router.push('/trips')}
+                        >
+                            <Map className="h-5 w-5" /> My Trips
+                        </Button>
+                    </div>
+                </motion.div>
             </div>
-          </motion.div>
         </div>
-      </section>
-
-      {/* Flight Info Bar */}
-      <section className="bg-card border-b">
-        <div className="container px-4 md:px-6 py-4">
-          <div className="flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <Plane className="h-4 w-4 text-primary" />
-              <span className="font-medium text-foreground">{FLIGHT_CONTEXT.origin} &rarr; {FLIGHT_CONTEXT.destination}</span>
-              <span>Flight {FLIGHT_CONTEXT.flightNumber}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              <span>{new Date(FLIGHT_CONTEXT.departureTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4" />
-              <span>{FLIGHT_CONTEXT.destinationCity}, {FLIGHT_CONTEXT.destinationCountry}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span>{FLIGHT_CONTEXT.passengers} passenger{FLIGHT_CONTEXT.passengers !== 1 ? 's' : ''}</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Content */}
-      <div className="container px-4 md:px-6 py-8 space-y-8">
-        <motion.div variants={container} initial="hidden" animate="show" className="space-y-8">
-
-          {/* Your Trips */}
-          <motion.section variants={item} className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-foreground">Your Trips</h2>
-              <OnboardingWizard initialData={wizardData} />
-            </div>
-            {trips.length > 0 ? (
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {trips.map(trip => (
-                  <TripCard key={trip.id} trip={trip} />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-xl border bg-muted/30 p-12 text-center space-y-4">
-                <p className="text-muted-foreground text-lg">No trips yet</p>
-                <p className="text-sm text-muted-foreground">Create your first trip to start planning experiences at your destination.</p>
-                <OnboardingWizard
-                  initialData={wizardData}
-                  trigger={
-                    <Button className="gap-2">
-                      <Plus className="h-4 w-4" /> Create Your First Trip
-                    </Button>
-                  }
-                />
-              </div>
-            )}
-          </motion.section>
-
-          {/* Discover Destination */}
-          <motion.section variants={item} className="space-y-4">
-            <h2 className="text-xl font-semibold text-foreground">Discover {FLIGHT_CONTEXT.destinationCity}</h2>
-            <div className="grid gap-4 md:grid-cols-3">
-              <DestinationCard
-                title="Tours & Sightseeing"
-                description="Explore iconic landmarks like Sagrada Familia, Park Guell, and the Gothic Quarter"
-                icon={<MapPin className="h-5 w-5" />}
-                href="/marketplace?city=Barcelona&category=tours"
-              />
-              <DestinationCard
-                title="Food & Culture"
-                description="Tapas crawls, cooking classes, and wine tastings in the heart of Catalonia"
-                icon={<MapPin className="h-5 w-5" />}
-                href="/marketplace?city=Barcelona&category=food"
-              />
-              <DestinationCard
-                title="Day Trips"
-                description="Montserrat monastery, Costa Brava beaches, and Girona medieval town"
-                icon={<MapPin className="h-5 w-5" />}
-                href="/marketplace?city=Barcelona&category=outdoor"
-              />
-            </div>
-          </motion.section>
-        </motion.div>
-      </div>
-    </div>
-  );
+    );
 }
 
-function DestinationCard({
-  title,
-  description,
-  icon,
-  href,
-}: {
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  href: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="group rounded-xl border bg-card p-6 space-y-3 hover:shadow-md hover:border-primary/20 transition-all"
-    >
-      <div className="flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-primary/10 text-primary">
-          {icon}
-        </div>
-        <h3 className="font-semibold group-hover:text-primary transition-colors">
-          {title}
-        </h3>
-      </div>
-      <p className="text-sm text-muted-foreground">{description}</p>
-    </Link>
-  );
+export default function HomePage() {
+    return (
+        <Suspense fallback={
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        }>
+            <WelcomeScreen />
+        </Suspense>
+    );
 }

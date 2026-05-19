@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Star, Clock, MapPin, Award } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTrips } from '@/context/TripContext';
+import { fmtPrice } from '@/lib/utils';
 
 interface ServiceCardProps {
     service: any;
@@ -107,7 +108,7 @@ export function ServiceCard({ service, type, isInModal, onCloseModal, currentLeg
                             <Skeleton className="h-6 w-24" />
                         ) : hasPrice ? (
                             <>
-                                {service.price} {service.currency}
+                                {fmtPrice(service.price, service.currency)}
                                 {isHotel && <span className="text-xs font-normal text-muted-foreground"> / night</span>}
                             </>
                         ) : (

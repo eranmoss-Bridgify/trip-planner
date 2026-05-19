@@ -198,7 +198,8 @@ export const UPCOMING_FLIGHT: Flight = {
 export const DEFAULT_DB_STATE = {
     currentUser: CURRENT_USER,
     upcomingFlight: UPCOMING_FLIGHT,
-    trips: [
+    trips: [] as any[],
+    _trips_seed_disabled: [
         {
             id: 't1',
             flightId: 'f1',

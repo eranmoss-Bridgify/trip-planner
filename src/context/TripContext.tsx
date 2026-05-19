@@ -5,10 +5,13 @@ import { Trip, DEFAULT_DB_STATE, TripLegData } from '@/lib/mock-data';
 
 interface TripContextType {
     trips: Trip[];
+    cartCount: number;
     getTripById: (id: string) => Trip | undefined;
     addTrip: (newTrip: Trip) => void;
     updateTrip: (updatedTrip: Trip) => void;
     addLegToTrip: (tripId: string, title: string, location: string, startDate: string, endDate: string) => void;
+    updateLeg: (tripId: string, legId: string, updates: { title?: string; location?: string; startDate?: string; endDate?: string }) => void;
+    splitLeg: (tripId: string, legId: string, splitDate: string, newCity: string) => void;
     addServiceToLeg: (tripId: string, legId: string, service: any, type: 'Hotel' | 'Attraction', dateRange?: { checkIn: string, checkOut: string }) => void;
     moveActivity: (tripId: string, legId: string, sourceDayIndex: number, destDayIndex: number, sourceIndex: number, destIndex: number) => void;
     moveActivityToLeg: (tripId: string, sourceLegId: string, destLegId: string, sourceDayIndex: number, sourceActivityIndex: number) => void;
@@ -18,6 +21,7 @@ interface TripContextType {
     removeLeg: (tripId: string, legId: string) => void;
     checkoutTrip: (tripId: string) => void;
     updateItemBookingStatus: (tripId: string, legId: string, itemType: 'Hotel' | 'Attraction' | 'Transfer', status: 'planned' | 'booked' | 'booked_manual', hotelIndex?: number, dayIndex?: number, activityIndex?: number) => void;
+    confirmBooking: (tripId: string, legId: string, dayIndex: number, activityIndex: number, bookingReference: string) => void;
     dismissRecommendation: (tripId: string, recommendationId: string) => void;
     dismissRecommendations: (tripId: string, recommendationIds: string[]) => void;
     isLoaded: boolean;
@@ -26,65 +30,89 @@ interface TripContextType {
 
 const TripContext = createContext<TripContextType | undefined>(undefined);
 
+// Strip any time/timezone component — always store dates as plain YYYY-MM-DD
+function toDateOnly(s: string): string {
+    return s.slice(0, 10);
+}
+
+// Add N days to a YYYY-MM-DD string using UTC arithmetic (no timezone involvement)
+function addDays(dateStr: string, n: number): string {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const ms = Date.UTC(y, m - 1, d) + n * 86400000;
+    const dt = new Date(ms);
+    return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+}
+
+function generateDays(start: string, end: string, location: string): any[] {
+    const days: any[] = [];
+    for (let cur = toDateOnly(start); cur <= toDateOnly(end); cur = addDays(cur, 1))
+        days.push({ date: cur, location, activities: [] });
+    return days;
+}
+
+function reconcileTrips(rawTrips: any[]): any[] {
+    const seenIds = new Set<string>();
+    return rawTrips.map((trip: any) => ({
+        ...trip,
+        legs: trip.legs?.map((leg: any) => {
+            const start = toDateOnly(leg.startDate);
+            const end = toDateOnly(leg.endDate);
+            const newDays: any[] = [];
+
+            for (let cur = start; cur <= end; cur = addDays(cur, 1)) {
+                const existingDay = leg.days?.find((day: any) => toDateOnly(day.date) === cur);
+                if (existingDay) {
+                    newDays.push({
+                        ...existingDay,
+                        date: cur,
+                        activities: existingDay.activities?.map((act: any) => {
+                            let newId = act.id;
+                            if (seenIds.has(newId)) {
+                                newId = `${newId}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+                            }
+                            seenIds.add(newId);
+                            return { ...act, id: newId };
+                        }) || []
+                    });
+                } else {
+                    newDays.push({ date: cur, location: leg.location, activities: [] });
+                }
+            }
+
+            return { ...leg, startDate: start, endDate: end, days: newDays };
+        }) || []
+    }));
+}
+
 export function TripProvider({ children }: { children: ReactNode }) {
     const [trips, setTrips] = useState<Trip[]>([]);
     const [isLoaded, setIsLoaded] = useState(false);
 
+    const cartCount = trips.reduce((total, trip) =>
+        trip.legs.reduce((lt, leg) =>
+            leg.days.reduce((dt, day) =>
+                dt + day.activities.filter((a: any) => a.bookingStatus === 'planned').length
+            , lt)
+        , total)
+    , 0);
+
     // Load from LocalStorage on mount
     useEffect(() => {
-        const storedTrips = localStorage.getItem('elalTrips');
+        const storedTrips = localStorage.getItem('wandervault_trips_v2');
         if (storedTrips) {
             try {
-                let parsedTrips = JSON.parse(storedTrips);
-
-                // MIGRATION: Ensure all activities have unique IDs to fix drag-and-drop key errors
-                // AND: Reconcile loaded days with the startDate/endDate
-                const seenIds = new Set<string>();
-                parsedTrips = parsedTrips.map((trip: any) => ({
-                    ...trip,
-                    legs: trip.legs?.map((leg: any) => {
-                        const start = new Date(leg.startDate);
-                        const end = new Date(leg.endDate);
-                        const newDays = [];
-
-                        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                            const dateStr = d.toISOString();
-                            const existingDay = leg.days?.find((day: any) => day.date.split('T')[0] === dateStr.split('T')[0]);
-
-                            if (existingDay) {
-                                newDays.push({
-                                    ...existingDay,
-                                    activities: existingDay.activities?.map((act: any) => {
-                                        let newId = act.id;
-                                        if (seenIds.has(newId)) {
-                                            newId = `${newId}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-                                        }
-                                        seenIds.add(newId);
-                                        return { ...act, id: newId };
-                                    }) || []
-                                });
-                            } else {
-                                newDays.push({
-                                    date: dateStr,
-                                    location: leg.location,
-                                    activities: []
-                                });
-                            }
-                        }
-
-                        return { ...leg, days: newDays };
-                    }) || []
-                }));
-
+                const parsedTrips = reconcileTrips(JSON.parse(storedTrips));
                 setTrips(parsedTrips);
             } catch (e) {
                 console.error("Failed to parse trips from local storage", e);
-                setTrips(DEFAULT_DB_STATE.trips);
+                const defaultTrips = reconcileTrips(DEFAULT_DB_STATE.trips as any[]);
+                setTrips(defaultTrips as Trip[]);
             }
         } else {
-            // First time load, use default mock data
-            setTrips(DEFAULT_DB_STATE.trips);
-            localStorage.setItem('elalTrips', JSON.stringify(DEFAULT_DB_STATE.trips));
+            // First time load — reconcile mock data to fill all days in each leg
+            const defaultTrips = reconcileTrips(DEFAULT_DB_STATE.trips as any[]);
+            setTrips(defaultTrips as Trip[]);
+            localStorage.setItem('wandervault_trips_v2', JSON.stringify(defaultTrips));
         }
         setIsLoaded(true);
     }, []);
@@ -92,7 +120,7 @@ export function TripProvider({ children }: { children: ReactNode }) {
     // Save to LocalStorage whenever trips change
     useEffect(() => {
         if (isLoaded) {
-            localStorage.setItem('elalTrips', JSON.stringify(trips));
+            localStorage.setItem('wandervault_trips_v2', JSON.stringify(trips));
         }
     }, [trips, isLoaded]);
 
@@ -101,7 +129,16 @@ export function TripProvider({ children }: { children: ReactNode }) {
     };
 
     const addTrip = (newTrip: Trip) => {
-        setTrips(prevTrips => [newTrip, ...prevTrips]);
+        const clean: Trip = {
+            ...newTrip,
+            legs: newTrip.legs.map(leg => ({
+                ...leg,
+                startDate: toDateOnly(leg.startDate),
+                endDate: toDateOnly(leg.endDate),
+                days: generateDays(leg.startDate, leg.endDate, leg.location),
+            })),
+        };
+        setTrips(prevTrips => [clean, ...prevTrips]);
     };
 
     const updateTrip = (updatedTrip: Trip) => {
@@ -117,16 +154,12 @@ export function TripProvider({ children }: { children: ReactNode }) {
     const addLegToTrip = (tripId: string, title: string, location: string, startDate: string, endDate: string) => {
         setTrips(prevTrips => prevTrips.map(trip => {
             if (trip.id === tripId) {
-                const start = new Date(startDate);
-                const end = new Date(endDate);
+                const start = toDateOnly(startDate);
+                const end = toDateOnly(endDate);
                 const newDays = [];
 
-                for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                    newDays.push({
-                        date: d.toISOString(),
-                        location: location,
-                        activities: []
-                    });
+                for (let cur = start; cur <= end; cur = addDays(cur, 1)) {
+                    newDays.push({ date: cur, location, activities: [] });
                 }
 
                 const newLeg: TripLegData = {
@@ -169,7 +202,7 @@ export function TripProvider({ children }: { children: ReactNode }) {
                                 const updatedDays = [...leg.days];
                                 const selectedDate = serviceInstance.selectedDate;
                                 const targetIdx = selectedDate
-                                    ? updatedDays.findIndex(d => d.date === selectedDate)
+                                    ? updatedDays.findIndex(d => d.date.split('T')[0] === selectedDate.split('T')[0])
                                     : -1;
                                 const dayIdx = targetIdx >= 0 ? targetIdx : 0;
                                 updatedDays[dayIdx] = {
@@ -348,6 +381,59 @@ export function TripProvider({ children }: { children: ReactNode }) {
         }));
     };
 
+    const updateLeg = (tripId: string, legId: string, updates: { title?: string; location?: string; startDate?: string; endDate?: string }) => {
+        setTrips(prev => prev.map(trip => {
+            if (trip.id !== tripId) return trip;
+            const legs = trip.legs.map(leg => {
+                if (leg.id !== legId) return leg;
+                const start = toDateOnly(updates.startDate ?? leg.startDate);
+                const end   = toDateOnly(updates.endDate   ?? leg.endDate);
+                const loc   = updates.location ?? leg.location;
+                // Rebuild days spanning the new date range, preserving existing activities
+                const newDays: any[] = [];
+                for (let cur = start; cur <= end; cur = addDays(cur, 1)) {
+                    const existing = leg.days.find(d => d.date === cur);
+                    newDays.push(existing ? { ...existing, location: loc } : { date: cur, location: loc, activities: [] });
+                }
+                return { ...leg, ...updates, startDate: start, endDate: end, location: loc, days: newDays };
+            });
+            return { ...trip, legs };
+        }));
+    };
+
+    const splitLeg = (tripId: string, legId: string, splitDate: string, newCity: string) => {
+        setTrips(prev => prev.map(trip => {
+            if (trip.id !== tripId) return trip;
+            const legIdx = trip.legs.findIndex(l => l.id === legId);
+            if (legIdx === -1) return trip;
+            const leg = trip.legs[legIdx];
+
+            const before = leg.days.filter(d => d.date < splitDate);
+            const after  = leg.days.filter(d => d.date >= splitDate);
+            if (before.length === 0 || after.length === 0) return trip;
+
+            const trimmedLeg = {
+                ...leg,
+                endDate: before[before.length - 1].date,
+                days: before,
+            };
+            const newLeg: TripLegData = {
+                id: `leg-${trip.id}-${Date.now()}`,
+                title: newCity,
+                location: newCity,
+                startDate: after[0].date,
+                endDate: after[after.length - 1].date,
+                hotels: [],
+                arrivalTransfer: null,
+                days: after.map(d => ({ ...d, location: newCity })),
+            };
+            const newLegs = [...trip.legs];
+            newLegs[legIdx] = trimmedLeg;
+            newLegs.splice(legIdx + 1, 0, newLeg);
+            return { ...trip, legs: newLegs };
+        }));
+    };
+
     const removeLeg = (tripId: string, legId: string) => {
         setTrips(prevTrips => prevTrips.map(trip => {
             if (trip.id !== tripId) return trip;
@@ -417,11 +503,31 @@ export function TripProvider({ children }: { children: ReactNode }) {
         }));
     };
 
+    const confirmBooking = (tripId: string, legId: string, dayIndex: number, activityIndex: number, bookingReference: string) => {
+        setTrips(prevTrips => prevTrips.map(trip => {
+            if (trip.id !== tripId) return trip;
+            const legs = trip.legs.map(leg => {
+                if (leg.id !== legId) return leg;
+                const days = leg.days.map((day, di) => {
+                    if (di !== dayIndex) return day;
+                    const activities = day.activities.map((act: any, ai: number) => {
+                        if (ai !== activityIndex) return act;
+                        return { ...act, bookingStatus: 'booked', bookingReference };
+                    });
+                    return { ...day, activities };
+                });
+                return { ...leg, days };
+            });
+            return { ...trip, legs };
+        }));
+    };
+
     return (
         <TripContext.Provider value={{
-            trips, getTripById, addTrip, updateTrip, addLegToTrip, addServiceToLeg, moveActivity, moveActivityToLeg, removeActivity, removeHotel, removeTransfer, removeLeg,
+            trips, cartCount, getTripById, addTrip, updateTrip, addLegToTrip, updateLeg, splitLeg, addServiceToLeg, moveActivity, moveActivityToLeg, removeActivity, removeHotel, removeTransfer, removeLeg,
             checkoutTrip,
             updateItemBookingStatus,
+            confirmBooking,
             dismissRecommendation,
             dismissRecommendations,
             isLoaded,
