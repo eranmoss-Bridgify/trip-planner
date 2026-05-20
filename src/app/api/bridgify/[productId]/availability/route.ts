@@ -27,7 +27,7 @@ async function resolveToUuid(externalId: string): Promise<string> {
     const res = await bridgifyFetch(`/attractions/products/${encodeURIComponent(externalId)}/`);
     if (!res.ok) { console.warn('[resolve] detail fetch failed', res.status, externalId); return externalId; }
     const data = await res.json();
-    const uuid = data?.attraction?.uuid ?? null;
+    const uuid = data?.uuid ?? data?.attraction?.uuid ?? null;
     console.log('[resolve]', externalId, '→ uuid:', uuid, '| keys:', Object.keys(data?.attraction ?? {}));
     return uuid ?? externalId;
   } catch (e) {
