@@ -282,12 +282,11 @@ export default function CheckoutPage() {
     const selectTimeslot = async (timeslot: string) => {
         if (!cart) return;
         setStepLoading(true);
-        const res = await cartPatch(`items/${cart.itemUuid}/timeslots/`, { timeslot_id: timeslot });
+        const res = await cartPatch(`items/${cart.itemUuid}/timeslots/`, { timeslot: timeslot });
         setStepLoading(false);
         if (!res.ok) {
-            // Timeslot may have filled up between loading and clicking — let user pick again
             const errDetail = res.data?.detail ?? res.data?.message ?? JSON.stringify(res.data);
-            setErrorMsg(`Timeslot "${timeslot}" is no longer available. Please go back and choose another time. (${errDetail})`);
+            setErrorMsg(`Could not reserve timeslot "${timeslot}". Please go back and choose another time. (${errDetail})`);
             setPhase('error');
             return;
         }
@@ -299,16 +298,24 @@ export default function CheckoutPage() {
     const selectTickets = async (tickets: CartState['selections']['tickets']) => {
         if (!cart || !tickets) return;
         setStepLoading(true);
-        const res = await cartPatch(`items/${cart.itemUuid}/tickets/`, {
-            tickets: tickets.map(t => ({ ticket_id: t.product_id, quantity: t.quantity })),
-        });
+        // Bridgify GET returns "ticket_types" but PATCH expects "tickets" — intentional API inconsistency
+        const ticketBody = { tickets: tickets.map(t => ({ product_id: t.product_id, quantity: t.quantity })) };
+        console.log('[checkout] PATCH tickets body:', JSON.stringify(ticketBody));
+        const res = await cartPatch(`items/${cart.itemUuid}/tickets/`, ticketBody);
+        console.log('[checkout] PATCH tickets response:', res.status, JSON.stringify(res.data));
         setStepLoading(false);
         if (!res.ok) {
-            setErrorMsg(`Could not set tickets: ${JSON.stringify(res.data)}`);
+            const errMsg = typeof res.data === 'string' ? res.data : (res.data?.detail ?? JSON.stringify(res.data));
+            setErrorMsg(`Could not set tickets: ${errMsg}`);
             setPhase('error');
             return;
         }
-        const updated = { ...cart, selections: { ...cart.selections, tickets } };
+        // Bridgify PATCH tickets returns ticket_prices with actual unit_price per type
+        const pricedTickets = tickets?.map(t => {
+            const priceEntry = res.data?.ticket_prices?.find((p: any) => p.product_id === t.product_id);
+            return priceEntry ? { ...t, unit_price: priceEntry.retail_price } : t;
+        });
+        const updated = { ...cart, selections: { ...cart.selections, tickets: pricedTickets } };
         setCart(updated);
         await advanceStep(updated);
     };
@@ -669,8 +676,8 @@ function TimeslotsStep({ data, onSelect }: { data: any; onSelect: (t: string) =>
 }
 
 function TicketsStep({ data, trip, onSelect }: { data: any; trip: any; onSelect: (tickets: any) => void }) {
-    // Bridgify returns "tickets" not "ticket_types"
-    const ticketTypes: any[] = data.tickets ?? data.ticket_types ?? [];
+    // GET /tickets/ returns "ticket_types"; PATCH /tickets/ expects "tickets" — Bridgify API quirk
+    const ticketTypes: any[] = data.ticket_types ?? data.tickets ?? [];
     const adults = trip?.passengers?.adults ?? 1;
     const children = trip?.passengers?.children ?? 0;
     const [quantities, setQuantities] = useState<Record<string, number>>(() => {
@@ -678,7 +685,7 @@ function TicketsStep({ data, trip, onSelect }: { data: any; trip: any; onSelect:
         ticketTypes.forEach((t: any) => {
             const name = t.name ?? '';
             if (/adult/i.test(name) || t.product_id === 'adult') {
-                init[t.product_id] = adults;
+                init[t.product_id] = Math.max(1, adults); // always at least 1 adult
             } else if (/child|junior|youth|kid/i.test(name) || t.product_id === 'child') {
                 init[t.product_id] = children;
             } else {
@@ -690,7 +697,13 @@ function TicketsStep({ data, trip, onSelect }: { data: any; trip: any; onSelect:
 
     const restriction = data.restriction ?? {};
     const maxTotal = restriction.overall_max_tickets ?? 10;
+    const adultRequired = restriction.adult_required ?? false;
     const total = Object.values(quantities).reduce((a, b) => a + b, 0);
+
+    // Check adult requirement
+    const adultTicket = ticketTypes.find((t: any) => /adult/i.test(t.name ?? '') || t.product_id === 'adult');
+    const adultQty = adultTicket ? (quantities[adultTicket.product_id] ?? 0) : 0;
+    const adultMissing = adultRequired && adultQty === 0;
 
     const update = (id: string, delta: number) => {
         setQuantities(prev => ({ ...prev, [id]: Math.max(0, (prev[id] ?? 0) + delta) }));
@@ -737,7 +750,10 @@ function TicketsStep({ data, trip, onSelect }: { data: any; trip: any; onSelect:
                     );
                 })}
                 <p className="text-xs text-muted-foreground">Max {maxTotal} tickets total · {total} selected</p>
-                <Button className="w-full bg-indigo-600 hover:bg-indigo-700" disabled={total === 0} onClick={handleConfirm}>
+                {adultMissing && (
+                    <p className="text-xs text-amber-600 font-medium">At least 1 adult ticket is required</p>
+                )}
+                <Button className="w-full bg-indigo-600 hover:bg-indigo-700" disabled={total === 0 || adultMissing} onClick={handleConfirm}>
                     Continue
                 </Button>
             </CardContent>
