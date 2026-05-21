@@ -23,7 +23,10 @@ export default function ExplorePage({ params, searchParams }: {
 
     const { trips } = useTrips();
     const trip = trips.find(t => t.id === id);
-    const leg = trip?.legs[0];
+    // Find the leg that contains the searched date; fall back to the first leg
+    const leg = date
+        ? (trip?.legs.find(l => l.startDate.split('T')[0] <= date && l.endDate.split('T')[0] >= date) ?? trip?.legs[0])
+        : trip?.legs[0];
     const destination = leg?.location ?? 'Barcelona';
 
     const [searchTerm, setSearchTerm] = useState('tours');
@@ -74,8 +77,9 @@ export default function ExplorePage({ params, searchParams }: {
                 onClose={() => setIsServiceDetailsOpen(false)}
                 service={selectedService}
                 type="Attraction"
-                tripId={trip?.id || id}
-                legId={leg?.id || ''}
+                tripId={trip?.id ?? id}
+                legId={leg?.id}
+                defaultCheckIn={date ?? leg?.startDate?.split('T')[0]}
             />
 
             {/* Search Bar */}

@@ -7,13 +7,14 @@ import { TripCalendarView } from './TripCalendarView';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TripLeg } from './TripLeg';
 import { DocumentsWallet } from './DocumentsWallet';
-import { FileText, Navigation, StickyNote, Plus, Calendar, Users, Pencil, List, Map as MapIcon, Plane, ShoppingBag, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { FileText, Navigation, StickyNote, Plus, Calendar, Users, Pencil, List, Map as MapIcon, Plane, ShoppingBag, ShieldCheck, CheckCircle2, Trash2 } from 'lucide-react';
 import { FlightCard } from './FlightCard';
 import { useTrips } from '@/context/TripContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ShareDialog } from '@/components/demo/ShareDialog';
+import { AIChatPanel } from '@/components/demo/AIChatPanel';
 import { formatShortDate, fmtPrice } from '@/lib/utils';
 import { AddLegModal } from './AddLegModal';
 import { EditLegModal } from './EditLegModal';
@@ -155,6 +156,8 @@ export function TripDetailsView({ tripId }: { tripId?: string }) {
                 destination={activeLeg?.location}
                 defaultTab={marketplaceTab}
                 vibes={trip.vibes}
+                legStartDate={activeLeg?.startDate}
+                legEndDate={activeLeg?.endDate}
                 onOpenServiceDetails={handleOpenServiceDetails}
             />
 
@@ -180,6 +183,8 @@ export function TripDetailsView({ tripId }: { tripId?: string }) {
                     if (res.ok) setTimeout(() => setSaveStatus('idle'), 3000);
                 }}
             />
+
+            <AIChatPanel trip={trip} onOpenServiceDetails={handleOpenServiceDetails} />
             {/* Trip Header */}
             <div className="flex flex-col gap-6">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -223,6 +228,19 @@ export function TripDetailsView({ tripId }: { tripId?: string }) {
                         </div>
                     </div>
                     <div className="flex gap-2 items-center flex-wrap justify-end">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            title="Delete trip"
+                            onClick={() => {
+                                if (!confirm(`Delete "${trip.name}"? This cannot be undone.`)) return;
+                                removeTrip(trip.id);
+                                router.push('/trips');
+                            }}
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
                         <ShareDialog trip={trip} />
                         <div className="flex bg-muted rounded-md p-1 items-center">
                             <Button
@@ -519,20 +537,14 @@ export function TripDetailsView({ tripId }: { tripId?: string }) {
                 </div>
             </div>
 
-            <div className="flex justify-center gap-3 mt-12 mb-8">
-                <Button variant="destructive" onClick={() => {
-                    removeTrip(trip.id);
-                    window.location.href = '/';
-                }}>
-                    Delete trip
-                </Button>
-                <Button variant="outline" className="text-muted-foreground" onClick={() => {
+            <div className="flex justify-center mt-12 mb-8">
+                <Button variant="ghost" size="sm" className="text-muted-foreground text-xs" onClick={() => {
                     if (confirm('Reset all trip data to defaults? This cannot be undone.')) {
                         localStorage.removeItem('wandervault_trips');
                         window.location.reload();
                     }
                 }}>
-                    Reset trip data
+                    Reset all trip data
                 </Button>
             </div>
         </div >

@@ -10,6 +10,7 @@ import { useTrips } from '@/context/TripContext';
 import {
     Star, MapPin, Clock, Check, User, Plus, Minus,
     Calendar as CalendarIcon, FileWarning, Loader2, AlertCircle,
+    ChevronLeft, ChevronRight, RefreshCw,
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
@@ -17,6 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { format } from 'date-fns';
 import { formatShortDate, fmtPrice } from '@/lib/utils';
 import { useBridgifyAvailability } from '@/lib/api-client';
+import { OnboardingWizard } from '@/components/demo/OnboardingWizard';
 
 interface ServiceDetailsSidebarProps {
     service: any | null;
@@ -34,13 +36,27 @@ export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, 
     const [currentImageIdx, setCurrentImageIdx] = useState(0);
     const [isAdding, setIsAdding] = useState(false);
 
-    // Marketplace mode: no trip/leg passed in — user picks them
+    // Marketplace mode: no trip/leg passed in — user picks trip, leg auto-matched by location
     const [mktTripId, setMktTripId] = useState<string>('');
     const [mktLegId, setMktLegId] = useState<string>('');
-    const [mktDate, setMktDate] = useState<string>('');
 
     const mktTrip = trips.find(t => t.id === mktTripId);
     const mktLeg = mktTrip?.legs.find(l => l.id === mktLegId);
+
+    // Returns the leg whose location best matches the attraction's location string.
+    // e.g. attraction.location="Barcelona, Spain" matches leg.location="Barcelona"
+    function findMatchingLeg(legs: typeof mktTrip.legs, attractionLocation: string): string | null {
+        if (!legs?.length || !attractionLocation) return null;
+        const haystack = attractionLocation.toLowerCase();
+        // Exact or substring match first
+        const exact = legs.find(l => l.location && haystack.includes(l.location.toLowerCase()));
+        if (exact) return exact.id;
+        // Word-level match: any word in the leg location appears in the attraction location
+        const word = legs.find(l =>
+            l.location?.toLowerCase().split(/[\s,]+/).some(w => w.length > 3 && haystack.includes(w))
+        );
+        return word?.id ?? null;
+    }
 
     // isHotel declared early — used in hooks below
     const isHotel = type === 'Hotel';
@@ -107,7 +123,15 @@ export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, 
             setRateKey(null);
             setMktTripId('');
             setMktLegId('');
-            setMktDate('');
+            setAttractionAdults(trip?.passengers?.adults ?? 2);
+
+            // Auto-check availability when opened from a trip context (skip manual button click)
+            const hasContext = Boolean(tripId && legId);
+            if (!isHotel && hasContext) {
+                setHasChecked(true);
+            } else {
+                setHasChecked(false);
+            }
 
             const from = legData
                 ? legData.startDate.split('T')[0]
@@ -125,6 +149,26 @@ export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, 
             }
         }
     }, [isOpen, service?.id, legData?.startDate, legData?.endDate]);
+
+    // When a marketplace trip is selected, auto-match leg by attraction location
+    useEffect(() => {
+        if (!mktTrip || isHotel) return;
+        const matched = findMatchingLeg(mktTrip.legs, (service as any)?.location ?? '');
+        if (matched) setMktLegId(matched);
+        else setMktLegId(''); // no match → show leg picker
+    }, [mktTripId]);
+
+    // When a marketplace leg is picked, adopt its dates and auto-check availability
+    useEffect(() => {
+        if (!mktLeg || isHotel) return;
+        const from = mktLeg.startDate.split('T')[0];
+        const to = mktLeg.endDate.split('T')[0];
+        setCheckFrom(from);
+        setCheckTo(to);
+        setSelectedSlotDate(null);
+        setSelectedTime(null);
+        setHasChecked(true);
+    }, [mktLegId]);
 
     // Reset time selection when the date changes
     useEffect(() => {
@@ -186,8 +230,9 @@ export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, 
         const effectiveTripId = tripId || mktTripId;
         const effectiveLegId = legId || mktLegId;
         if (effectiveTripId && effectiveLegId) {
-            if (!isHotel && mktDate && !tripId) {
-                (customizedService as any).selectedDate = mktDate;
+            // Use the availability slot date for day placement (matches leg days by date)
+            if (!isHotel && selectedSlotDate) {
+                (customizedService as any).selectedDate = selectedSlotDate;
             }
             addServiceToLeg(effectiveTripId, effectiveLegId, customizedService, type!, dr);
         }
@@ -199,6 +244,7 @@ export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, 
     };
 
     const hasTrip = Boolean(tripId && legId);
+    // Marketplace mode is ready once a trip + leg are selected (date comes from availability slot)
     const mktReady = !hasTrip && Boolean(mktTripId && mktLegId);
 
     function formatSlotDate(dateStr: string) {
@@ -210,12 +256,12 @@ export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, 
         <Sheet open={isOpen} onOpenChange={onClose}>
             <SheetContent className="w-full sm:max-w-xl p-0 flex flex-col h-full right-0 overflow-hidden z-50">
                 {/* Image gallery */}
-                <div className="relative h-64 sm:h-80 shrink-0 bg-muted">
+                <div className="relative h-64 sm:h-80 shrink-0 bg-muted overflow-hidden">
                     {images.length > 0 ? (
                         <img
                             src={images[currentImageIdx]}
                             alt={service.name}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover transition-opacity duration-200"
                             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                         />
                     ) : (
@@ -229,17 +275,23 @@ export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, 
                         </Badge>
                     </div>
                     {images.length > 1 && (
-                        <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 px-4 overflow-x-auto">
-                            {images.map((img: string, idx: number) => (
-                                <button
-                                    key={idx}
-                                    onClick={() => setCurrentImageIdx(idx)}
-                                    className={`w-14 h-14 rounded-md overflow-hidden border-2 transition-all ${idx === currentImageIdx ? 'border-primary shadow-sm scale-105' : 'border-transparent opacity-70 hover:opacity-100'}`}
-                                >
-                                    <img src={img} className="w-full h-full object-cover" />
-                                </button>
-                            ))}
-                        </div>
+                        <>
+                            <button
+                                onClick={() => setCurrentImageIdx(i => (i - 1 + images.length) % images.length)}
+                                className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/50 hover:bg-black/75 p-2 text-white transition-colors z-10 shadow-lg"
+                            >
+                                <ChevronLeft className="h-6 w-6" />
+                            </button>
+                            <button
+                                onClick={() => setCurrentImageIdx(i => (i + 1) % images.length)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/50 hover:bg-black/75 p-2 text-white transition-colors z-10 shadow-lg"
+                            >
+                                <ChevronRight className="h-6 w-6" />
+                            </button>
+                            <div className="absolute bottom-3 right-3 z-10 rounded-full bg-black/60 px-2.5 py-1 text-white text-xs font-medium tabular-nums">
+                                {currentImageIdx + 1} / {images.length}
+                            </div>
+                        </>
                     )}
                 </div>
 
@@ -420,13 +472,94 @@ export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, 
                         </div>
                     )}
 
-                    {/* Attraction Flow — form first, check on demand (matches TOS integration hub) */}
+                    {/* Attraction Flow */}
                     {!isHotel && (
                         <div className="space-y-5">
-                            <h3 className="font-semibold text-lg">Check Availability & Book</h3>
+                            <h3 className="font-semibold text-lg">Book this experience</h3>
 
-                            {/* Date range + adults + button */}
+                            {/* Step 1 — No trips yet: prompt to create one */}
+                            {!hasTrip && trips.length === 0 && (
+                                <div className="bg-background rounded-xl border shadow-xs p-5 space-y-3 text-center">
+                                    <p className="text-sm font-semibold">You don't have a trip yet</p>
+                                    <p className="text-xs text-muted-foreground">Create a trip first and we'll add this activity to the right day automatically.</p>
+                                    <OnboardingWizard
+                                        trigger={
+                                            <Button className="w-full gap-2">
+                                                <Plus className="h-4 w-4" /> Plan a trip
+                                            </Button>
+                                        }
+                                    />
+                                </div>
+                            )}
+
+                            {/* Step 1 — Trip selector (marketplace / no-trip context only) */}
+                            {!hasTrip && trips.length > 0 && (
+                                <div className="bg-background rounded-xl border shadow-xs p-4 space-y-3">
+                                    <p className="text-sm font-semibold flex items-center gap-1.5">
+                                        <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">1</span>
+                                        Which trip?
+                                    </p>
+                                    <Select value={mktTripId} onValueChange={v => { setMktTripId(v); setHasChecked(false); setSelectedSlotDate(null); }}>
+                                        <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select trip" /></SelectTrigger>
+                                        <SelectContent>
+                                            {trips.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+
+                                    {/* Show matched leg as a confirmation pill; fallback to picker if no match */}
+                                    {mktTripId && mktLegId && mktLeg && (
+                                        <div className="flex items-center justify-between rounded-lg bg-indigo-50 border border-indigo-100 px-3 py-2 text-xs text-indigo-700">
+                                            <span className="flex items-center gap-1.5">
+                                                <MapPin className="h-3 w-3 shrink-0" />
+                                                <span className="font-medium">{mktLeg.title || mktLeg.location}</span>
+                                                <span className="text-indigo-400 mx-1">·</span>
+                                                <CalendarIcon className="h-3 w-3 shrink-0" />
+                                                {formatShortDate(mktLeg.startDate)} – {formatShortDate(mktLeg.endDate)}
+                                            </span>
+                                            <button className="underline text-indigo-500 hover:text-indigo-700 ml-2 whitespace-nowrap" onClick={() => setMktLegId('')}>Change</button>
+                                        </div>
+                                    )}
+                                    {mktTripId && !mktLegId && (
+                                        <div className="space-y-1">
+                                            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1">
+                                                No destination matched "{(service as any)?.location}" — pick one:
+                                            </p>
+                                            <Select value={mktLegId} onValueChange={v => setMktLegId(v)}>
+                                                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select destination" /></SelectTrigger>
+                                                <SelectContent>
+                                                    {mktTrip?.legs.map(l => <SelectItem key={l.id} value={l.id}>{l.title || l.location}</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Trip context banner — when opened from within a trip */}
+                            {trip && legData && (
+                                <div className="flex flex-wrap gap-x-4 gap-y-1 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2 text-xs text-indigo-700">
+                                    <span className="font-semibold w-full truncate">{trip.name}</span>
+                                    <span className="flex items-center gap-1"><MapPin className="h-3 w-3 shrink-0" />{legData.title || legData.location}</span>
+                                    <span className="flex items-center gap-1"><CalendarIcon className="h-3 w-3 shrink-0" />{formatShortDate(legData.startDate)} – {formatShortDate(legData.endDate)}</span>
+                                    {trip.passengers && (
+                                        <span className="flex items-center gap-1">
+                                            <User className="h-3 w-3 shrink-0" />
+                                            {trip.passengers.adults ?? 1} adult{(trip.passengers.adults ?? 1) !== 1 ? 's' : ''}
+                                            {trip.passengers.children ? `, ${trip.passengers.children} child${trip.passengers.children !== 1 ? 'ren' : ''}` : ''}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Step 2 — Availability (only shown when trip context exists) */}
+                            {(hasTrip || mktLegId) && (
                             <div className="bg-background rounded-xl border shadow-xs p-4 space-y-4">
+                                {!hasTrip && (
+                                    <p className="text-sm font-semibold flex items-center gap-1.5">
+                                        <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">2</span>
+                                        Available dates
+                                    </p>
+                                )}
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="space-y-1.5">
                                         <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">From</label>
@@ -470,12 +603,15 @@ export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, 
                                     <Button
                                         onClick={() => { setHasChecked(true); setSelectedSlotDate(null); setSelectedTime(null); }}
                                         disabled={availInFlight}
+                                        variant={hasChecked ? 'outline' : 'default'}
+                                        size={hasChecked ? 'sm' : 'default'}
                                         className="gap-2"
                                     >
-                                        {availInFlight ? <><Loader2 className="h-4 w-4 animate-spin" /> Checking…</> : <><CalendarIcon className="h-4 w-4" /> Check Availability</>}
+                                        {availInFlight ? <><Loader2 className="h-4 w-4 animate-spin" /> Checking…</> : hasChecked ? <><RefreshCw className="h-3.5 w-3.5" /> Refresh</> : <><CalendarIcon className="h-4 w-4" /> Check Availability</>}
                                     </Button>
                                 </div>
                             </div>
+                            )}
 
                             {/* Results — only shown after user clicks Check Availability */}
                             {hasChecked && !availInFlight && (
@@ -594,39 +730,6 @@ export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, 
 
                 {/* Footer — shrink-0 keeps it pinned below the scroll area */}
                 <div className="shrink-0 border-t bg-background/90 backdrop-blur-md">
-                    {/* Marketplace trip/leg/date picker */}
-                    {!hasTrip && trips.length > 0 && (
-                        <div className="px-4 pt-3 pb-1 space-y-2 border-b">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Add to trip</p>
-                            <div className="grid grid-cols-2 gap-2">
-                                <Select value={mktTripId} onValueChange={v => { setMktTripId(v); setMktLegId(''); setMktDate(''); }}>
-                                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select trip" /></SelectTrigger>
-                                    <SelectContent>
-                                        {trips.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                                <Select value={mktLegId} onValueChange={v => { setMktLegId(v); setMktDate(''); }} disabled={!mktTripId}>
-                                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select leg" /></SelectTrigger>
-                                    <SelectContent>
-                                        {mktTrip?.legs.map(l => <SelectItem key={l.id} value={l.id}>{l.title || l.location}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            {mktLeg && (
-                                <Select value={mktDate} onValueChange={setMktDate}>
-                                    <SelectTrigger className="h-8 text-xs w-full"><SelectValue placeholder="Select day" /></SelectTrigger>
-                                    <SelectContent>
-                                        {mktLeg.days.map(d => {
-                                            const [y,m,day] = d.date.split('-').map(Number);
-                                            const label = new Date(y, m-1, day).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-                                            return <SelectItem key={d.date} value={d.date}>{label}</SelectItem>;
-                                        })}
-                                    </SelectContent>
-                                </Select>
-                            )}
-                        </div>
-                    )}
-
                     <div className="flex justify-between items-center gap-4 p-4">
                         <div>
                             {isHotel && selectedRoomId ? (
@@ -657,10 +760,10 @@ export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, 
                             <Button
                                 size="lg"
                                 className="flex-1 max-w-[200px]"
-                                disabled={!canAdd || isAdding || (!hasTrip && !mktDate)}
+                                disabled={!canAdd || isAdding}
                                 onClick={handleAdd}
                             >
-                                {isAdding ? 'Adding…' : isHotel ? 'Add to Trip' : 'Add to Trip'}
+                                {isAdding ? 'Adding…' : 'Add to Trip'}
                             </Button>
                         )}
                     </div>

@@ -1,14 +1,28 @@
+'use client';
+
 import { Trip } from '@/lib/mock-data';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, MapPin, Users } from 'lucide-react';
+import { Calendar, MapPin, Users, Trash2 } from 'lucide-react';
 import Link from 'next/link';
+import { useTrips } from '@/context/TripContext';
+import { useRouter } from 'next/navigation';
 
 interface TripCardProps {
     trip: Trip;
 }
 
 export function TripCard({ trip }: TripCardProps) {
+    const { removeTrip } = useTrips();
+    const router = useRouter();
+
+    const handleDelete = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!confirm(`Delete "${trip.name}"? This cannot be undone.`)) return;
+        removeTrip(trip.id);
+    };
+
     return (
         <Card className="overflow-hidden hover:shadow-lg transition-shadow border-muted group cursor-pointer">
             <div className="h-40 bg-muted/50 relative overflow-hidden">
@@ -21,6 +35,13 @@ export function TripCard({ trip }: TripCardProps) {
                 <div className="absolute bottom-4 left-4 text-white">
                     <h3 className="font-bold text-lg">{trip.name}</h3>
                 </div>
+                <button
+                    onClick={handleDelete}
+                    className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 text-white opacity-0 group-hover:opacity-100 hover:bg-red-600/80 transition-all"
+                    title="Delete trip"
+                >
+                    <Trash2 className="h-3.5 w-3.5" />
+                </button>
             </div>
             <CardContent className="pt-4 grid gap-2">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Search, Compass, AlertCircle, RefreshCw } from 'lucide-react';
+import { Search, Compass, AlertCircle, RefreshCw, Calendar, MapPin } from 'lucide-react';
 import { ServiceCard } from '@/components/demo/ServiceCard';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -17,10 +17,12 @@ interface MarketplaceModalProps {
     destination?: string;
     defaultTab?: string;
     vibes?: string[];
+    legStartDate?: string;
+    legEndDate?: string;
     onOpenServiceDetails?: (service: any, type: 'Hotel' | 'Attraction') => void;
 }
 
-export function MarketplaceModal({ isOpen, onClose, destination = "Barcelona", vibes, onOpenServiceDetails }: MarketplaceModalProps) {
+export function MarketplaceModal({ isOpen, onClose, destination = "Barcelona", vibes, legStartDate, legEndDate, onOpenServiceDetails }: MarketplaceModalProps) {
     const defaultSearch = vibestoSearchTerm(vibes);
     const [searchTerm, setSearchTerm] = useState(defaultSearch);
     const [debouncedSearch, setDebouncedSearch] = useState(defaultSearch);
@@ -53,9 +55,20 @@ export function MarketplaceModal({ isOpen, onClose, destination = "Barcelona", v
                         <Compass className="h-6 w-6 text-blue-500" />
                         Explore {destination}
                     </DialogTitle>
-                    <p className="text-sm text-muted-foreground mt-1">
-                        Find tours, activities, and experiences to add to your trip.
-                    </p>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-muted-foreground">
+                        {destination && (
+                            <span className="flex items-center gap-1">
+                                <MapPin className="h-3.5 w-3.5" /> {destination}
+                            </span>
+                        )}
+                        {legStartDate && legEndDate && (
+                            <span className="flex items-center gap-1">
+                                <Calendar className="h-3.5 w-3.5" />
+                                {new Date(legStartDate + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} –{' '}
+                                {new Date(legEndDate + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                        )}
+                    </div>
                 </DialogHeader>
 
                 <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
