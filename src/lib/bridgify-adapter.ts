@@ -30,11 +30,26 @@ const CATEGORY_MAP: Record<string, AttractionCategory> = {
   'esim': 'ESim',
 };
 
-function resolveCategory(raw?: string): AttractionCategory {
-  if (!raw) return 'Tour';
-  const lower = raw.toLowerCase();
-  for (const [key, cat] of Object.entries(CATEGORY_MAP)) {
-    if (lower.includes(key)) return cat;
+function resolveCategory(raw?: string, title?: string): AttractionCategory {
+  // Try explicit category field first
+  if (raw) {
+    const lower = raw.toLowerCase();
+    for (const [key, cat] of Object.entries(CATEGORY_MAP)) {
+      if (lower.includes(key)) return cat;
+    }
+  }
+  // Bridgify rarely returns a category — infer from title instead
+  if (title) {
+    const t = title.toLowerCase();
+    if (/kayak|snorkel|surf|swim|dive|sailing|boat tour|water sport/.test(t)) return 'Water Sport';
+    if (/hik(e|ing)|trek|climb|bike tour|cycling|e-bike|ebike|outdoor/.test(t)) return 'Outdoor';
+    if (/cook(ing|ery)|tapas|wine tasting|food tour|tasting|paella|gastro|dinner|lunch/.test(t)) return 'Food & Drink';
+    if (/museum|gallery|art tour|picasso|mir[óo]|dali|exhibition/.test(t)) return 'Museum';
+    if (/skip.the.line|skip the line|entry ticket|entrance ticket|fast.track|priority access|timed entry/.test(t)) return 'Attraction';
+    if (/flamenco|concert|show|performance|theater|theatre/.test(t)) return 'Show';
+    if (/spa|massage|wellness|yoga|meditation/.test(t)) return 'Wellness';
+    if (/airport transfer|private transfer|taxi|shuttle/.test(t)) return 'Transfer';
+    if (/segway|e-scooter/.test(t)) return 'Tour';
   }
   return 'Tour';
 }
@@ -68,8 +83,12 @@ export function bridgifyToAttraction(product: BridgifyProduct): Attraction {
     id: product.external_id,
     name: product.title,
     image: product.main_photo_url ?? '',
-    images: product.photos ?? (product.main_photo_url ? [product.main_photo_url] : []),
-    category: resolveCategory(product.category),
+    images: (() => {
+      const extra: string[] = (product as any).additional_info?.additional_image_urls ?? [];
+      const all = product.main_photo_url ? [product.main_photo_url, ...extra.filter(u => u !== product.main_photo_url)] : extra;
+      return all.length ? all : (product.main_photo_url ? [product.main_photo_url] : []);
+    })(),
+    category: resolveCategory(product.category, product.title),
     price: p.amount,
     currency: p.currency,
     duration: formatDuration(product.duration_minutes),
