@@ -1,7 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { Trip, DEFAULT_DB_STATE, TripLegData } from '@/lib/mock-data';
+import { useAuth } from '@/context/AuthContext';
 
 interface TripContextType {
     trips: Trip[];
@@ -87,6 +88,10 @@ function reconcileTrips(rawTrips: any[]): any[] {
 export function TripProvider({ children }: { children: ReactNode }) {
     const [trips, setTrips] = useState<Trip[]>([]);
     const [isLoaded, setIsLoaded] = useState(false);
+    const { user, isLoading: authLoading } = useAuth();
+    const dbSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Track which user ID we've already loaded from DB to avoid re-fetching on re-renders
+    const loadedDbUserId = useRef<string | null>(null);
 
     const cartCount = trips.reduce((total, trip) =>
         trip.legs.reduce((lt, leg) =>
@@ -117,12 +122,49 @@ export function TripProvider({ children }: { children: ReactNode }) {
         setIsLoaded(true);
     }, []);
 
-    // Save to LocalStorage whenever trips change
+    // When a user logs in, load their trips from DB (DB is source of truth for logged-in users)
     useEffect(() => {
-        if (isLoaded) {
-            localStorage.setItem('wandervault_trips_v2', JSON.stringify(trips));
+        if (authLoading || !user || loadedDbUserId.current === user.id) return;
+        loadedDbUserId.current = user.id;
+
+        fetch('/api/trips', { credentials: 'include' })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (data?.trips?.length) {
+                    const reconciled = reconcileTrips(data.trips);
+                    setTrips(reconciled as Trip[]);
+                    localStorage.setItem('wandervault_trips_v2', JSON.stringify(reconciled));
+                }
+            })
+            .catch(() => {}); // Keep localStorage state if DB fetch fails
+    }, [user, authLoading]);
+
+    // When user logs out, reset the loaded marker so re-login re-fetches
+    useEffect(() => {
+        if (!user) loadedDbUserId.current = null;
+    }, [user]);
+
+    // Save to LocalStorage on every change; auto-save to DB (debounced 2s) when logged in
+    useEffect(() => {
+        if (!isLoaded) return;
+        localStorage.setItem('wandervault_trips_v2', JSON.stringify(trips));
+
+        if (user) {
+            if (dbSyncTimer.current) clearTimeout(dbSyncTimer.current);
+            dbSyncTimer.current = setTimeout(() => {
+                fetch('/api/trips', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ trips }),
+                }).catch(() => {});
+            }, 2000);
         }
-    }, [trips, isLoaded]);
+
+        return () => {
+            if (dbSyncTimer.current) clearTimeout(dbSyncTimer.current);
+        };
+    }, [trips, isLoaded, user]);
 
     const getTripById = (id: string) => {
         return trips.find(t => t.id === id);

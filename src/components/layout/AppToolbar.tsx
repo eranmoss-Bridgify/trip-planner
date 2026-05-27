@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { ShoppingCart, Search, Map } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTrips } from '@/context/TripContext';
@@ -10,9 +10,11 @@ import { UserMenu } from '@/components/auth/UserMenu';
 export function AppToolbar() {
     const { cartCount } = useTrips();
     const pathname = usePathname();
+    const searchParams = useSearchParams();
 
-    // Hide on root (redirect gate) and on /demo (airline owns the chrome there)
+    // Hide on root (redirect gate), /demo (airline owns the chrome), and embed mode
     if (pathname === '/' || pathname === '/demo') return null;
+    if (searchParams.get('embed') === '1') return null;
 
     return (
         <div className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">

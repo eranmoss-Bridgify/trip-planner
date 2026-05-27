@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTrips } from '@/context/TripContext';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -97,6 +98,7 @@ async function cartPatch(path: string, body: object) {
 export default function CheckoutPage() {
     const router = useRouter();
     const { trips, confirmBooking } = useTrips();
+    const { user } = useAuth();
 
     const [item, setItem] = useState<CheckoutItem | null>(null);
     const [phase, setPhase] = useState<Phase>('init');
@@ -114,17 +116,15 @@ export default function CheckoutPage() {
         const parsed: CheckoutItem = JSON.parse(raw);
         setItem(parsed);
         const trip = trips.find(t => t.id === parsed.tripId);
-        if (trip) {
-            const p = (trip as any).passengers;
-            setForm(f => ({
-                ...f,
-                first_name: (trip as any).passengerName?.split(' ')[0] || '',
-                last_name: (trip as any).passengerName?.split(' ').slice(1).join(' ') || '',
-                email: p?.email || '',
-                phone: p?.phone || '',
-            }));
-        }
-    }, []);
+        const p = (trip as any)?.passengers;
+        const nameParts = (trip as any)?.passengerName?.split(' ') ?? [];
+        setForm(f => ({
+            first_name: nameParts[0] || user?.name?.split(' ')[0] || f.first_name,
+            last_name: nameParts.slice(1).join(' ') || user?.name?.split(' ').slice(1).join(' ') || f.last_name,
+            email: p?.email || user?.email || f.email,
+            phone: p?.phone || f.phone,
+        }));
+    }, [user]);
 
     // Initialise cart once item is loaded
     useEffect(() => {

@@ -50,6 +50,9 @@ export interface BridgifyProduct {
 
 export interface BridgifySearchResponse {
   attractions: BridgifyProduct[];
+  count: number;
+  next: string | null;
+  previous: string | null;
 }
 
 export interface BridgifyDetailResponse {

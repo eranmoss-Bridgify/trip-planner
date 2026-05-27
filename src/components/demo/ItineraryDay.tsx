@@ -2,7 +2,7 @@ import type { TripDay } from '@/lib/mock-data';
 import type { Attraction } from '@/types/services';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Hotel as HotelIcon, Camera, Bus, MapPin, Clock, MoreHorizontal, BedDouble, ShieldCheck, ShoppingBag, CheckCircle2, Trash2, GripVertical, Calendar, AlertCircle, Star } from 'lucide-react';
+import { Plus, Hotel as HotelIcon, Camera, Bus, MapPin, Clock, MoreHorizontal, BedDouble, ShieldCheck, ShoppingBag, CheckCircle2, Trash2, GripVertical, Calendar, AlertCircle, Star, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn, formatShortDate, VIBE_TO_SEARCH, rotateArray, fmtPrice } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
@@ -30,6 +30,35 @@ interface ItineraryDayProps {
     checkIns?: { hotel: any; checkIn: string; checkOut: string }[];
     checkOuts?: { hotel: any; checkIn: string; checkOut: string }[];
     onOpenServiceDetails?: (service: any, type: 'Hotel' | 'Attraction') => void;
+}
+
+function ActivityImageCarousel({ images, alt }: { images: string[]; alt: string }) {
+    const [idx, setIdx] = useState(0);
+    const imgs = images.filter(Boolean).slice(0, 10);
+
+    if (!imgs.length) return <div className="w-full h-full bg-muted" />;
+
+    const prev = (e: React.MouseEvent) => { e.stopPropagation(); setIdx(i => (i - 1 + imgs.length) % imgs.length); };
+    const next = (e: React.MouseEvent) => { e.stopPropagation(); setIdx(i => (i + 1) % imgs.length); };
+
+    return (
+        <>
+            <img src={imgs[idx]} alt={alt} className="w-full h-full object-cover transition-opacity duration-200" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+            {imgs.length > 1 && (
+                <>
+                    <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 hover:bg-black/75 p-1.5 text-white transition-colors z-10 shadow-lg">
+                        <ChevronLeft className="h-5 w-5" />
+                    </button>
+                    <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 hover:bg-black/75 p-1.5 text-white transition-colors z-10 shadow-lg">
+                        <ChevronRight className="h-5 w-5" />
+                    </button>
+                    <div className="absolute bottom-2 right-2 z-10 rounded-full bg-black/60 px-2 py-0.5 text-white text-xs font-medium tabular-nums">
+                        {idx + 1} / {imgs.length}
+                    </div>
+                </>
+            )}
+        </>
+    );
 }
 
 export function ItineraryDay({ day, tripId, index, legId, checkIns, checkOuts, onOpenServiceDetails }: ItineraryDayProps) {
@@ -147,7 +176,7 @@ export function ItineraryDay({ day, tripId, index, legId, checkIns, checkOuts, o
                     >
                         <Sparkles className="h-4 w-4" /> Surprise Me
                     </Button>
-                    <Link href={`/trip/${tripId}/explore?date=${day.date}`}>
+                    <Link href={`/trip/${tripId}/explore?date=${day.date}&legId=${legId}`}>
                         <Button size="sm" variant="outline" className="gap-2">
                             <Plus className="h-4 w-4" /> Add Activity
                         </Button>
@@ -168,7 +197,7 @@ export function ItineraryDay({ day, tripId, index, legId, checkIns, checkOuts, o
                         <Button variant="ghost" size="sm" className="h-8 text-orange-700 hover:text-orange-800 hover:bg-orange-100">Details</Button>
                     </div>
 
-                    <Link href={`/trip/${tripId}/explore?category=transport`}>
+                    <Link href={`/trip/${tripId}/explore?category=transport&legId=${legId}`}>
                         <Button variant="ghost" size="sm" className="w-full mt-2 border border-dashed text-muted-foreground gap-2">
                             <Bus className="h-3 w-3" /> Book Departure Transfer
                         </Button>
@@ -192,14 +221,14 @@ export function ItineraryDay({ day, tripId, index, legId, checkIns, checkOuts, o
             <Droppable droppableId={index.toString()}>
                 {(provided: any) => (
                     <div
-                        className="grid grid-cols-2 gap-3 min-h-[100px]"
+                        className="flex flex-col gap-3 min-h-[100px]"
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                     >
                         {day.activities.length === 0 ? (
-                            <div className="col-span-2 p-6 border border-dashed rounded-xl bg-muted/10 flex flex-col items-center justify-center text-center gap-2">
+                            <div className="p-6 border border-dashed rounded-xl bg-muted/10 flex flex-col items-center justify-center text-center gap-2">
                                 <p className="text-muted-foreground text-sm">No activities planned for this day.</p>
-                                <Link href={`/trip/${tripId}/explore?date=${day.date}`}>
+                                <Link href={`/trip/${tripId}/explore?date=${day.date}&legId=${legId}`}>
                                     <Button variant="link" className="text-primary">Explore recommendations</Button>
                                 </Link>
                             </div>
@@ -232,8 +261,11 @@ export function ItineraryDay({ day, tripId, index, legId, checkIns, checkOuts, o
                                                 </div>
 
                                                 {/* Image */}
-                                                <div className="relative h-40 w-full bg-muted overflow-hidden">
-                                                    <img src={activity.image} alt={activity.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                                                <div className="relative w-full bg-muted overflow-hidden" style={{ height: '220px' }}>
+                                                    <ActivityImageCarousel
+                                                        images={(activity as any).images?.length ? (activity as any).images : [activity.image]}
+                                                        alt={activity.name}
+                                                    />
 
                                                     {/* Category — top right */}
                                                     <Badge className="absolute top-2 right-2 bg-background/80 text-foreground backdrop-blur text-[10px] px-1.5">

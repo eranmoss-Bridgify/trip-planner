@@ -32,10 +32,13 @@ interface OnboardingWizardProps {
         dateFrom?: Date;
         dateTo?: Date;
         passengers?: number;
+        adults?: number;
+        children?: number;
         flight?: string;
         origin?: string;
     };
     trigger?: React.ReactNode;
+    defaultOpen?: boolean;
     onOpen?: () => void;
 }
 
@@ -58,8 +61,8 @@ const VIBES = [
     { id: 'history', label: 'Historical Sites', icon: Landmark },
 ];
 
-export function OnboardingWizard({ initialData, trigger, onOpen }: OnboardingWizardProps) {
-    const [open, setOpen] = useState(false);
+export function OnboardingWizard({ initialData, trigger, defaultOpen, onOpen }: OnboardingWizardProps) {
+    const [open, setOpen] = useState(defaultOpen ?? false);
     const [step, setStep] = useState(1);
     const { addTrip } = useTrips();
     const router = useRouter();
@@ -74,8 +77,8 @@ export function OnboardingWizard({ initialData, trigger, onOpen }: OnboardingWiz
 
     const [pax, setPax] = useState({
         infants: 0,
-        children: 0,
-        adults: initialData?.passengers || 1,
+        children: initialData?.children ?? 0,
+        adults: initialData?.adults ?? initialData?.passengers ?? 1,
         elderly: 0
     });
 

@@ -273,7 +273,7 @@ export function TripLeg({ leg, tripId, onOpenMarketplace, onOpenServiceDetails, 
                                     <Button variant="ghost" size="sm" onClick={openAddManualHotel} className="h-8 text-xs">
                                         Add Manually
                                     </Button>
-                                    <Link href={`/trip/${tripId}/explore?category=hotels`}>
+                                    <Link href={`/trip/${tripId}/explore?category=hotels&legId=${leg.id}`}>
                                         <Button size="sm" className="h-8">
                                             Book Hotel
                                         </Button>
@@ -400,7 +400,7 @@ export function TripLeg({ leg, tripId, onOpenMarketplace, onOpenServiceDetails, 
                                 <Button variant="ghost" size="sm" onClick={openAddManualHotel} className="h-8 text-xs">
                                     Add Manually
                                 </Button>
-                                <Link href={`/trip/${tripId}/explore?category=hotels`}>
+                                <Link href={`/trip/${tripId}/explore?category=hotels&legId=${leg.id}`}>
                                     <Button size="sm" className="h-8">
                                         Book Hotel
                                     </Button>
@@ -414,7 +414,7 @@ export function TripLeg({ leg, tripId, onOpenMarketplace, onOpenServiceDetails, 
                         <div className="flex items-center justify-between mb-3">
                             <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2"><Car className="h-4 w-4" /> Arrival Transfer</h4>
                             {!arrivalTransfer && (
-                                <Link href={`/trip/${tripId}/explore?category=transport`}>
+                                <Link href={`/trip/${tripId}/explore?category=transport&legId=${leg.id}`}>
                                     <Button variant="outline" size="sm" className="h-8">
                                         + Book Transfer
                                     </Button>

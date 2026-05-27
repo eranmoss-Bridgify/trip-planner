@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bridgify API — Gap Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0F0F13;
+    --surface: #18181F;
+    --border: #26263A;
+    --text: #E2E2EC;
+    --muted: #6B6B8A;
+    --accent: #7B6EF5;
+    --red: #F04E68;
+    --amber: #E8935A;
+    --green: #34C98A;
+    --blue: #38BDF8;
+    --red-dim: rgba(240,78,104,0.10);
+    --amber-dim: rgba(232,147,90,0.10);
+    --green-dim: rgba(52,201,138,0.10);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    line-height: 1.65;
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 64px 40px 120px;
+  }
+
+  /* ─── HEADER ─── */
+  .doc-header { margin-bottom: 56px; padding-bottom: 32px; border-bottom: 1px solid var(--border); }
+  .doc-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 16px;
+  }
+  h1 {
+    font-size: 34px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    color: #fff;
+    margin-bottom: 10px;
+  }
+  .doc-sub { color: var(--muted); font-size: 14px; font-weight: 300; }
+
+  /* ─── SECTIONS ─── */
+  .section { margin-bottom: 52px; }
+  .section-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ─── ITEMS ─── */
+  .item { margin-bottom: 28px; }
+  .item-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 7px;
+  }
+  .item-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 500;
+    white-space: nowrap;
+    margin-top: 2px;
+    min-width: 52px;
+  }
+  .item-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    flex: 1;
+  }
+  .item-body {
+    padding-left: 66px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .item-body strong { color: var(--text); font-weight: 500; }
+  .item-body p + p { margin-top: 8px; }
+
+  /* ─── BADGE ─── */
+  .badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .badge.high   { background: var(--red-dim);   color: var(--red);   border: 1px solid rgba(240,78,104,0.22); }
+  .badge.medium { background: var(--amber-dim);  color: var(--amber); border: 1px solid rgba(232,147,90,0.22); }
+  .badge.low    { background: rgba(107,107,138,0.12); color: var(--muted); border: 1px solid rgba(107,107,138,0.2); }
+  .badge.done   { background: var(--green-dim);  color: var(--green); border: 1px solid rgba(52,201,138,0.22); }
+  .badge.info   { background: rgba(56,189,248,0.10); color: var(--blue); border: 1px solid rgba(56,189,248,0.22); }
+
+  /* ─── TABLE ─── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    margin-top: 10px;
+  }
+  th {
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 400;
+  }
+  td {
+    padding: 9px 12px;
+    border-bottom: 1px solid rgba(38,38,58,0.7);
+    color: var(--muted);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  td:first-child { color: var(--text); font-weight: 500; }
+  tr:hover td { background: rgba(255,255,255,0.015); }
+
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    overflow: hidden;
+    margin-top: 12px;
+  }
+
+  /* ─── CALLOUT ─── */
+  .callout {
+    border-left: 3px solid var(--border);
+    padding: 12px 16px;
+    margin: 10px 0;
+    font-size: 13px;
+    color: var(--muted);
+    background: var(--surface);
+    border-radius: 0 6px 6px 0;
+  }
+  .callout.red   { border-left-color: var(--red);   background: var(--red-dim); }
+  .callout.amber { border-left-color: var(--amber);  background: var(--amber-dim); }
+  .callout.green { border-left-color: var(--green);  background: var(--green-dim); }
+  .callout strong { color: var(--text); font-weight: 500; }
+
+  /* ─── DIVIDER ─── */
+  hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+  /* ─── CODE ─── */
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: rgba(123,110,245,0.1);
+    color: var(--accent);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  /* ─── ENDPOINT LIST ─── */
+  .endpoint-row {
+    display: grid;
+    grid-template-columns: 52px 80px 1fr auto;
+    gap: 12px;
+    align-items: baseline;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .endpoint-row:last-child { border-bottom: none; }
+  .method {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-align: center;
+  }
+  .method.get    { background: rgba(52,201,138,0.15); color: var(--green); }
+  .method.post   { background: rgba(123,110,245,0.15); color: var(--accent); }
+  .method.put    { background: rgba(232,147,90,0.15); color: var(--amber); }
+  .method.delete { background: rgba(240,78,104,0.15); color: var(--red); }
+  .endpoint-path { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text); }
+  .endpoint-desc { color: var(--muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+
+<div class="doc-header">
+  <div class="doc-label">Bridgify Integration · Internal Report · May 2026</div>
+  <h1>API Gap Report</h1>
+  <p class="doc-sub">Gaps and limitations encountered while building a trip-planning product on top of Bridgify. Written as feedback to the Bridgify team.</p>
+</div>
+
+
+<!-- ══════ 1. SEARCH QUALITY ══════ -->
+<div class="section">
+  <div class="section-title">1 — Search Quality Gaps</div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">A-01</span>
+      <span class="item-title">Search result ordering is silently ignored</span>
+      <span class="badge high">High</span>
+    </div>
+    <div class="item-body">
+      <p>Every sort parameter we tested — <code>rating</code>, <code>-rating</code>, <code>price</code>, <code>best_seller</code>, <code>relevance</code>, <code>title</code> — returns results in the same order regardless of the value. The API accepts these parameters without error but has no effect. There is no way to sort results server-side.</p>
+      <p><strong>Impact:</strong> Results appear in supplier ingestion order. High-rated or cheapest products are not surfaced first. Any meaningful sort must be done client-side on whatever page of data was returned.</p>
+      <p style="margin-top:8px; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--green);">✓ Verified against production API — identical result order with and without ordering=-rating</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">A-02</span>
+      <span class="item-title">Accented characters silently return zero results</span>
+      <span class="badge high">High</span>
+    </div>
+    <div class="item-body">
+      <p><code>text_search</code> is accent-sensitive. Accented input returns no results; removing accents returns full results.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Query</th><th>Results</th></tr></thead>
+          <tbody>
+            <tr><td>"Sagrada Família" (with accent)</td><td style="color:var(--red)">0 results</td></tr>
+            <tr><td>"Sagrada Familia" (no accent)</td><td style="color:var(--green)">319 results</td></tr>
+            <tr><td>"Güell"</td><td style="color:var(--red)">0 results</td></tr>
+            <tr><td>"Guell"</td><td style="color:var(--green)">151 results</td></tr>
+            <tr><td>"batlló"</td><td style="color:var(--red)">0 results</td></tr>
+            <tr><td>"batllo"</td><td style="color:var(--green)">50 results</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top:10px;"><strong>Impact:</strong> Any user who copies a destination from Google Maps, Wikipedia, or a search engine gets a silent empty grid with no error message.</p>
+      <p style="margin-top:8px;"><strong>Note:</strong> Other Bridgify consumers handle this by stripping accents client-side before sending the query — so this appears to be a known limitation rather than an unacknowledged bug. We apply the same workaround. Ideally this normalisation would happen server-side so every consumer doesn't have to solve it independently.</p>
+      <p style="margin-top:8px; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--green);">✓ Verified against production API</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">A-03</span>
+      <span class="item-title">Text search is title/description match only — no category or intent awareness</span>
+      <span class="badge high">High</span>
+    </div>
+    <div class="item-body">
+      <p><code>text_search</code> performs a naive substring match against product titles and descriptions. There is no synonym resolution, no intent mapping, and no category awareness. Querying a broad user intent returns sparse or zero results because the word does not appear in product titles.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>User Intent</th><th>Obvious Keyword</th><th>Results (Barcelona)</th></tr></thead>
+          <tbody>
+            <tr><td>Nature &amp; Outdoors</td><td><code>outdoor</code></td><td style="color:var(--red)">2</td></tr>
+            <tr><td>Nightlife</td><td><code>nightlife</code></td><td style="color:var(--red)">2</td></tr>
+            <tr><td>Wellness</td><td><code>wellness</code></td><td style="color:var(--red)">0</td></tr>
+            <tr><td>Food &amp; Dining</td><td><code>tapas</code></td><td style="color:var(--green)">206</td></tr>
+            <tr><td>Culture</td><td><code>museum</code></td><td style="color:var(--green)">153</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top:10px;"><strong>Impact:</strong> We maintain a hardcoded keyword map (<code>VIBE_TO_SEARCH</code>) that translates user-facing categories into API terms that happen to return results in Barcelona. This map is city-specific and breaks for other destinations. Wellness, nightlife, and outdoor activities are effectively invisible unless the supplier used those exact words in the product title.</p>
+      <p><strong>Also:</strong> Products have a <code>category</code> field (e.g. <code>CULTURE</code>, <code>OUTDOOR</code>), but the search endpoint does not accept <code>category</code> as a filter parameter. There is no way to search by category even though the data is there.</p>
+      <p style="margin-top:8px; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--green);">✓ Verified against production API — category_id filter tested with Museums (id=9), returned same count as unfiltered</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">A-04</span>
+      <span class="item-title">Geo / bounding box filtering is accepted but silently ignored</span>
+      <span class="badge medium">Medium</span>
+    </div>
+    <div class="item-body">
+      <p>The search endpoint accepts geo parameters (<code>lat_min</code>, <code>lat_max</code>, <code>lng_min</code>, <code>lng_max</code>, <code>bbox</code>) and returns HTTP 200 — but the result count is identical to an unfiltered city-level search. These parameters appear to be dead code.</p>
+      <p><strong>Impact:</strong> Cannot build a map view that only shows activities within the visible viewport. There is no proximity search, no radius filter, and no nearby endpoint. Client must fetch the entire city catalog and cluster coordinates in the browser.</p>
+      <p style="margin-top:8px; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--green);">✓ Verified against production API — tight Barcelona bbox returned count: 2856, same as unfiltered</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════ 2. DUPLICATE PRODUCTS ══════ -->
+<div class="section">
+  <div class="section-title">2 — Duplicate Products</div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">B-01</span>
+      <span class="item-title"><code>page</code>/<code>page_size</code> params silently return wrong results — <code>offset</code>/<code>limit</code> is the correct approach</span>
+      <span class="badge low">Documentation Gap</span>
+    </div>
+    <div class="item-body">
+      <p>This turned out not to be a Bridgify bug. Pagination works correctly using <code>offset</code>/<code>limit</code> — each page returns a unique set of results. The <code>page</code>/<code>page_size</code> params (a very common REST convention) are silently broken — every page returns the same results with no error. The <code>next</code> URL in the response already uses <code>offset</code>/<code>limit</code>, which is the hint we missed.</p>
+      <p style="margin-top:8px;"><strong>Recommendation:</strong> Either make <code>page</code>/<code>page_size</code> work, return a 400 when they're passed, or document clearly that <code>offset</code>/<code>limit</code> is the only supported pagination style.</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">B-02</span>
+      <span class="item-title">Same tour listed by multiple suppliers with no grouping</span>
+      <span class="badge high">High</span>
+    </div>
+    <div class="item-body">
+      <p>The same real-world attraction appears as separate products per supplier with no indication they are the same experience. A user searching "Sagrada Família" sees <strong>324 listings</strong> from GetYourGuide, Viator, and Tiqets at prices ranging from $3.59 to $108.85 — a 30× price range for the same monument, with no grouping or "show cheapest" signal.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Tour</th><th>Supplier A Price</th><th>Supplier B Price</th><th>Delta</th></tr></thead>
+          <tbody>
+            <tr><td>Costa Brava: Kayak, Snorkel &amp; Cliff Jump</td><td>$99.56 (GYG)</td><td>$71.77 (Viator)</td><td>28% cheaper on Viator</td></tr>
+            <tr><td>Sagrada Família Skip-the-Line Guided Tour</td><td>$72.62 (GYG)</td><td>$64.59 (Viator)</td><td>11% cheaper on Viator</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top:10px;"><strong>Supplier distribution</strong> in a 100-product sample for Barcelona "tour": Viator 54%, GetYourGuide 36%, Tiqets 8%, HotelBeds 2%. Viator products dominate results regardless of quality.</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════ 3. AVAILABILITY API ══════ -->
+<div class="section">
+  <div class="section-title">3 — Availability API Gaps</div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">C-01</span>
+      <span class="item-title">Availability returns slots but products are not orderable in sandbox</span>
+      <span class="badge medium">Sandbox?</span>
+    </div>
+    <div class="item-body">
+      <p><code>GET /attractions/products/availability/{id}/</code> returns date and time slot data for most products. The issue is that products with available slots cannot be booked — the booking step fails even when the calendar shows dates. The sandbox does not clearly distinguish between "available to view" and "available to order," which makes it impossible to build a reliable end-to-end booking flow in sandbox.</p>
+      <p style="margin-top:8px;"><strong>Impact:</strong> We can display availability calendars and slot pickers, but cannot confirm whether a product is truly purchasable without attempting a booking and receiving a failure. This may be a sandbox-only limitation.</p>
+    </div>
+  </div>
+
+
+</div>
+
+
+<!-- ══════ 4. MISSING ENDPOINTS ══════ -->
+<div class="section">
+  <div class="section-title">4 — Endpoints That Exist But Are Incomplete or Missing</div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">D-01</span>
+      <span class="item-title">Best Sellers endpoints ignore city filter — return global or wrong-city results</span>
+      <span class="badge high">High</span>
+    </div>
+    <div class="item-body">
+      <p><code>GET /attractions/best-sellers-bridgify/</code> and <code>GET /attractions/best-sellers-gyg/</code> both exist but cannot be used as a city-specific editorial feature. Tested against Barcelona:</p>
+      <div class="callout" style="margin-top:10px; font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.9;">
+        best-sellers-bridgify (no city) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ 504 timeout<br>
+        best-sellers-bridgify ?city_name=Barcelona → 200, returns Disneyland Paris &amp; London products<br>
+        best-sellers-gyg ?city_name=Barcelona &nbsp;&nbsp;&nbsp;&nbsp;→ 200, returns Singapore &amp; global products<br>
+        best-sellers-gyg ?city=Barcelona &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ 200, identical results (city param ignored)
+      </div>
+      <p style="margin-top:10px;">Both endpoints return a static global list regardless of city. We fall back to a <code>text_search=tours&amp;city_name={city}</code> query for the home page featured section instead. ✓ Verified against production API.</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">D-02</span>
+      <span class="item-title">City / Destination Autocomplete</span>
+      <span class="badge medium">Medium</span>
+    </div>
+    <div class="item-body">
+      <p><code>GET /attractions/cities/</code> returns a list with lat/lng and attraction counts, but there is no query parameter for prefix matching or partial search. Building a usable autocomplete requires fetching the full city list and filtering client-side, which is impractical for a large list.</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">D-03</span>
+      <span class="item-title">Category filter broken — 33 categories exist but only 1 works on search</span>
+      <span class="badge high">High</span>
+    </div>
+    <div class="item-body">
+      <p>Bridgify exposes a well-structured taxonomy of 33 categories via <code>GET /attractions/categories/</code> — Nightlife, Wellness &amp; Wellbeing, Outdoor Activities, Museums, Shows &amp; Performances, Family Friendly, Hidden Gems, and more. Products are tagged with these categories. There is even a <code>category_main</code> filter parameter on the search endpoint that accepts category slugs.</p>
+      <p style="margin-top:8px;">We tested all 33 category slugs against <code>GET /attractions/products/?city_name=London&amp;category_main={slug}</code>. Only one returns a filtered result:</p>
+      <div class="callout" style="margin-top:10px; font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.8;">
+        nightlife &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ 85 results &nbsp;✓<br>
+        wellness-&amp;-wellbeing &nbsp;&nbsp;&nbsp;→ 0 results &nbsp;&nbsp;✗<br>
+        outdoor-activities &nbsp;&nbsp;&nbsp;&nbsp;→ 0 results &nbsp;&nbsp;✗<br>
+        museums &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ 0 results &nbsp;&nbsp;✗<br>
+        shows-&amp;-performances &nbsp;&nbsp;→ 0 results &nbsp;&nbsp;✗<br>
+        family-friendly &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ 0 results &nbsp;&nbsp;✗<br>
+        <em>… 26 more categories all return 0</em>
+      </div>
+      <p style="margin-top:10px;">The infrastructure is there. The taxonomy is well-designed. But the filter only works for one category, which appears accidental. This makes the entire category system unusable for search filtering. ✓ Verified against production API.</p>
+      <pre style="margin-top:14px; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:16px; font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.7; overflow-x:auto; color:var(--text)"><span style="color:var(--muted)">// How we call the search endpoint</span>
+GET https://api.bridgify.io/attractions/products/
+  ?city_name=London
+  &amp;category_main=wellness-&amp;-wellbeing   <span style="color:var(--red)">← returns 0 results</span>
+  &amp;category_main=outdoor-activities      <span style="color:var(--red)">← returns 0 results</span>
+  &amp;category_main=museums                 <span style="color:var(--red)">← returns 0 results</span>
+  &amp;category_main=nightlife               <span style="color:var(--green)">← returns 85 results (only one that works)</span>
+
+<span style="color:var(--muted)">// Response when category filter is ignored — full unfiltered catalog returned</span>
+{
+  "count": 10000,
+  "attractions": [ <span style="color:var(--muted)">/* all products, no category filtering applied */</span> ]
+}
+
+<span style="color:var(--muted)">// Expected behavior</span>
+{
+  "count": 312,
+  "attractions": [ <span style="color:var(--muted)">/* only products tagged with Wellness & Wellbeing */</span> ]
+}</pre>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">D-04</span>
+      <span class="item-title">No POI registry or landmark grouping</span>
+      <span class="badge medium">Medium</span>
+    </div>
+    <div class="item-body">
+      <p>Every product has a <code>geolocation</code> lat/lng — map pins are technically possible. But there is no landmark registry, no proximity endpoint, and no way to ask "show me all products at the Sagrada Família." Without a POI layer, a map would show 324 separate pins for the same monument.</p>
+      <div class="callout">Endpoints returning 404: <code>/attractions/pois/</code>, <code>/attractions/landmarks/</code>, <code>/attractions/geo/</code>, <code>/attractions/products/nearby/</code>, <code>/attractions/products/clusters/</code></div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">D-05</span>
+      <span class="item-title">Search autocomplete / suggestions</span>
+      <span class="badge low">Low</span>
+    </div>
+    <div class="item-body">
+      <p><code>GET /attractions/search-suggestion/?q=...</code> exists but was not evaluated in detail. A type-ahead endpoint that returns matching product titles, category names, and city names would substantially improve search UX.</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">D-06</span>
+      <span class="item-title">No global catalog export — impossible to build a local index without city-by-city crawling</span>
+      <span class="badge high">High</span>
+    </div>
+    <div class="item-body">
+      <p>There is no endpoint to fetch all products across all cities, no catalog dump, no bulk export, and no webhook/feed for new or updated products. The only way to build a local copy of the catalog — required for deduplication, semantic search, or any offline processing — is to:</p>
+      <ol style="margin-top:8px; padding-left:20px; line-height:2;">
+        <li>Fetch the full city list from <code>GET /attractions/cities/</code> (~1,000+ cities)</li>
+        <li>Paginate through every city's products with <code>GET /attractions/products/?city_name={city}&offset={n}</code></li>
+        <li>Stitch, deduplicate, and store locally</li>
+      </ol>
+      <p style="margin-top:10px;">This approach requires thousands of API calls, has no delta/incremental update mechanism, and provides no signal when a product is added, updated, or removed. Any local index goes stale immediately with no way to know.</p>
+      <div class="callout" style="margin-top:10px;"><strong>Impact:</strong> Duplicate detection, semantic search, category mapping, and AI pre-filtering all require a local product index. Without a catalog export or change feed, building and maintaining one is impractical at scale.</div>
+    </div>
+  </div>
+</div>
+
+
+<hr>
+
+<!-- ══════ AI ASSISTANT ══════ -->
+<div class="section">
+  <div class="section-title">5 — AI Assistant — API Gaps That Limit Quality</div>
+
+  <p style="color:var(--muted); font-size:13px; margin-bottom:20px;">The AI assistant (Claude) proposes activities based on the user's trip context. Its quality is directly limited by the Bridgify search gaps documented above. This section connects those gaps to their AI impact.</p>
+
+  <div class="callout" style="margin-bottom:24px;">
+    <strong>How it works today:</strong> User sends a message ("I want something romantic") → server classifies intent → runs 2–3 parallel Bridgify keyword searches → injects top 15 results into Claude's prompt → Claude picks from that pool. Claude can only propose what the keyword search surfaces.
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">F-01</span>
+      <span class="item-title">No date-filtered search — AI proposes activities regardless of availability on the trip dates</span>
+      <span class="badge high">High</span>
+    </div>
+    <div class="item-body">
+      <p>The Bridgify search endpoint has no date parameter. There is no way to ask "show me activities available on June 15th" — the search always returns the full catalog regardless of whether products are bookable on the user's travel dates. Claude ends up proposing activities that may be fully booked, closed, or seasonal.</p>
+      <p style="margin-top:8px;"><strong>The per-product workaround is too slow:</strong> checking availability requires one API call per product (<code>GET /availability/{id}/</code>). Verifying 15 candidates before responding would add 15 HTTP calls to every AI reply — 3–8 seconds of extra latency minimum. In sandbox, even products with available slots often cannot be booked (see <strong>C-01</strong>).</p>
+      <p style="margin-top:8px;"><strong>What we need from Bridgify:</strong> a date filter on the search endpoint (<code>?available_on=2026-06-15</code>) or a batch availability check (<code>POST /availability/batch</code> with multiple IDs + a date range) so all candidates can be filtered in one round-trip before Claude sees them.</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">F-02</span>
+      <span class="item-title">Keyword search limits proposal quality — AI inherits all search gaps</span>
+      <span class="badge high">High</span>
+    </div>
+    <div class="item-body">
+      <p>Claude's proposals are only as good as what the keyword pre-fetch returns. When a user asks for "wellness" or "outdoor activities", Bridgify returns 0–2 results (see <strong>A-03</strong>), giving Claude almost nothing to pick from. The AI falls back to generic tour results — which is why proposals often feel irrelevant to the actual request.</p>
+      <p style="margin-top:8px;"><strong>The right solution is simple:</strong> map user intent to one of Bridgify's 33 categories — "I want something relaxing" → <em>Wellness &amp; Wellbeing</em>, "outdoor" → <em>Outdoor Activities</em> — and pass the slug to <code>category_main</code> on the search endpoint. The taxonomy is well-designed and the parameter exists. But 32 of 33 categories return 0 results (see <strong>D-03</strong>). Until the filter works, intent-to-category mapping has nowhere to land.</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">F-03</span>
+      <span class="item-title">No geo-aware proposals</span>
+      <span class="badge medium">Medium</span>
+    </div>
+    <div class="item-body">
+      <p>A user asking "find something near the Sagrada Família" or "activities in the Gothic Quarter" gets city-wide results — Bridgify's geo filter params are silently ignored (see <strong>A-04</strong>). Claude cannot honour location-specific requests.</p>
+    </div>
+  </div>
+
+
+</div>
+
+<hr>
+
+
+<!-- ══════ 6. WHAT WE BUILT ══════ -->
+<div class="section">
+  <div class="section-title">6 — What We Built — Trip Planner Schema &amp; APIs</div>
+
+  <p style="color:var(--muted); font-size:13px; margin-bottom:28px;">To build a complete trip planning product on top of Bridgify, we implemented the following infrastructure on our side. This section documents what exists for reference.</p>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id" style="min-width:unset; margin-right:8px;">Stack</span>
+      <span class="item-title">Technology Stack</span>
+    </div>
+    <div class="item-body">
+      <div class="table-wrap" style="margin-top:4px;">
+        <table>
+          <thead><tr><th>Layer</th><th>Technology</th><th>Role</th></tr></thead>
+          <tbody>
+            <tr><td>Frontend</td><td>Next.js 14 (App Router), React, Tailwind CSS, shadcn/ui, Framer Motion</td><td>Trip planner UI — itinerary builder, explore, checkout</td></tr>
+            <tr><td>API proxy</td><td>Django (Python), hosted alongside Next.js</td><td>Bridgify proxy — normalises pagination, strips accents, deduplicates results, caches categories</td></tr>
+            <tr><td>Auth</td><td>bcryptjs, JWT (jose), Resend (email OTP)</td><td>Email + password + 6-digit MFA; httpOnly session cookie</td></tr>
+            <tr><td>Database</td><td>PostgreSQL 15</td><td>Persisted trips, users, sessions, activities</td></tr>
+            <tr><td>AI assistant</td><td>Anthropic Claude API (claude-sonnet-4-6)</td><td>Intent classification, activity proposals, itinerary Q&amp;A</td></tr>
+            <tr><td>Search data</td><td>Bridgify REST API</td><td>Experiences catalog — products, availability, bookings</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id" style="min-width:unset; margin-right:8px;">DB</span>
+      <span class="item-title">Database Schema — <code>trip_planner</code></span>
+    </div>
+    <div class="item-body">
+      <p>Schema: <code>trip_planner</code> in Postgres. Six tables:</p>
+      <div class="table-wrap" style="margin-top:12px;">
+        <table>
+          <thead><tr><th>Table</th><th>Purpose</th><th>Key Columns</th></tr></thead>
+          <tbody>
+            <tr><td><code>users</code></td><td>Registered travellers</td><td>id (UUID), email (unique), password_hash (bcrypt), name</td></tr>
+            <tr><td><code>otp_tokens</code></td><td>Email MFA codes</td><td>user_id, token (6-digit), expires_at (10 min TTL), used (bool)</td></tr>
+            <tr><td><code>sessions</code></td><td>Auth sessions</td><td>user_id, token (TEXT — JWT ~200 chars), expires_at (7-day)</td></tr>
+            <tr><td><code>trips</code></td><td>Saved itineraries</td><td>user_id, local_id (dedup key), name, destination, vibes[], passengers (JSONB), share_token</td></tr>
+            <tr><td><code>trip_members</code></td><td>Collaboration roles</td><td>(trip_id, user_id) PK, role (owner / editor)</td></tr>
+            <tr><td><code>trip_legs</code></td><td>City segments within a trip</td><td>trip_id, local_id, location, start_date, end_date, sort_order</td></tr>
+            <tr><td><code>activities</code></td><td>Booked / planned activities per day</td><td>leg_id, day_date, external_id (Bridgify), name, category, image_url, price, currency, duration, rating, booking_status, booking_ref, is_best_seller, raw_data (JSONB), sort_order</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout" style="margin-top:12px;"><strong>Note:</strong> <code>sessions.token</code> must be <code>TEXT</code>, not <code>VARCHAR(64)</code>. JWT tokens are ~200 characters. A VARCHAR(64) silently fails the INSERT and the session is never created.</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id" style="min-width:unset; margin-right:8px;">Auth</span>
+      <span class="item-title">Auth API Routes</span>
+    </div>
+    <div class="item-body">
+      <p>Email + bcrypt password + 6-digit OTP via Resend. Session stored as JWT in an httpOnly cookie (<code>wv_session</code>, 7-day TTL).</p>
+      <div class="table-wrap" style="margin-top:12px;">
+        <div class="endpoint-row">
+          <span class="item-id" style="min-width:unset;"></span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);">Method</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);">Route</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);">Description</span>
+        </div>
+        <div class="endpoint-row">
+          <span></span>
+          <span class="method post">POST</span>
+          <span class="endpoint-path">/api/auth/register</span>
+          <span class="endpoint-desc">Create user, hash password, send OTP</span>
+        </div>
+        <div class="endpoint-row">
+          <span></span>
+          <span class="method post">POST</span>
+          <span class="endpoint-path">/api/auth/login</span>
+          <span class="endpoint-desc">Verify password, send OTP</span>
+        </div>
+        <div class="endpoint-row">
+          <span></span>
+          <span class="method post">POST</span>
+          <span class="endpoint-path">/api/auth/verify-otp</span>
+          <span class="endpoint-desc">Verify OTP → set wv_session cookie</span>
+        </div>
+        <div class="endpoint-row">
+          <span></span>
+          <span class="method post">POST</span>
+          <span class="endpoint-path">/api/auth/logout</span>
+          <span class="endpoint-desc">Delete session row + clear cookie</span>
+        </div>
+        <div class="endpoint-row">
+          <span></span>
+          <span class="method get">GET</span>
+          <span class="endpoint-path">/api/auth/me</span>
+          <span class="endpoint-desc">Return { id, email, name } from session</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id" style="min-width:unset; margin-right:8px;">Trips</span>
+      <span class="item-title">Trip Storage &amp; Sharing Routes</span>
+    </div>
+    <div class="item-body">
+      <div class="table-wrap">
+        <div class="endpoint-row">
+          <span></span>
+          <span class="method get">GET</span>
+          <span class="endpoint-path">/api/trips</span>
+          <span class="endpoint-desc">All trips for current user (owned + shared via trip_members)</span>
+        </div>
+        <div class="endpoint-row">
+          <span></span>
+          <span class="method post">POST</span>
+          <span class="endpoint-path">/api/trips</span>
+          <span class="endpoint-desc">Upsert trip batch from localStorage; deduplicates by local_id</span>
+        </div>
+        <div class="endpoint-row">
+          <span></span>
+          <span class="method put">PUT</span>
+          <span class="endpoint-path">/api/trips/[id]</span>
+          <span class="endpoint-desc">Update trip metadata (name, destination, vibes, dates)</span>
+        </div>
+        <div class="endpoint-row">
+          <span></span>
+          <span class="method delete">DELETE</span>
+          <span class="endpoint-path">/api/trips/[id]</span>
+          <span class="endpoint-desc">Delete trip (owner only)</span>
+        </div>
+        <div class="endpoint-row">
+          <span></span>
+          <span class="method post">POST</span>
+          <span class="endpoint-path">/api/trips/share</span>
+          <span class="endpoint-desc">Generate share token; auto-saves trip to DB first</span>
+        </div>
+        <div class="endpoint-row">
+          <span></span>
+          <span class="method get">GET</span>
+          <span class="endpoint-path">/api/trips/share/[token]</span>
+          <span class="endpoint-desc">Public read-only trip view for share link</span>
+        </div>
+        <div class="endpoint-row">
+          <span></span>
+          <span class="method post">POST</span>
+          <span class="endpoint-path">/api/trips/join</span>
+          <span class="endpoint-desc">Add logged-in user as editor via share token</span>
+        </div>
+      </div>
+      <div class="callout" style="margin-top:12px;"><strong>Sync model:</strong> TripContext auto-saves to <code>POST /api/trips</code> with a 2-second debounce on every mutation when a user is logged in. DB is the source of truth for logged-in users; localStorage is the fallback for guests. The upsert uses <code>ON CONFLICT (user_id, local_id) DO UPDATE</code> to avoid duplicates.</div>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id" style="min-width:unset; margin-right:8px;">AI</span>
+      <span class="item-title">AI Chat Route</span>
+    </div>
+    <div class="item-body">
+      <p><code>POST /api/ai-chat</code> — Claude (claude-sonnet-4-6) with server-side Bridgify pre-fetch.</p>
+      <p style="margin-top:8px;"><strong>Flow:</strong> User message → regex intent classification → parallel Bridgify keyword searches (2–3 terms) → inject top 15 results into system prompt → Claude proposes matching activities as confirmable cards. Claude does not call Bridgify directly — all search happens before the LLM call.</p>
+      <p style="margin-top:8px;"><strong>Tools:</strong> <code>propose_add_activity</code>, <code>propose_remove_activity</code>. Chat history persisted to localStorage (<code>chat_ltm_{userId}_{tripId}</code>, 60-message cap).</p>
+      <p style="margin-top:8px;"><strong>Gap:</strong> Intent classification is regex-based (23 rules). Compound requests, non-English input, and vague queries fall through to a default keyword set. This is a stopgap until semantic search is available.</p>
+    </div>
+  </div>
+</div>
+
+<hr>
+
+<!-- ══════ 7. RECOMMENDATIONS ══════ -->
+<div class="section">
+  <div class="section-title">7 — Recommendations</div>
+
+  <p style="color:var(--muted); font-size:13px; margin-bottom:28px;">Expected behaviours and missing capabilities — what we'd expect from a mature travel activities API.</p>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">R-01</span>
+      <span class="item-title">Semantic search</span>
+      <span class="badge high">Missing</span>
+    </div>
+    <div class="item-body">
+      <p>Searching "romantic outdoor adventure" or "nightlife" should return relevant results even when those words don't appear in a product title. Expected: intent-aware search with synonym resolution and category mapping. Current behaviour is a raw text match — "wellness" returns 0 results, "nightlife" returns 1.</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">R-02</span>
+      <span class="item-title">POI / Venue-level API</span>
+      <span class="badge high">Missing</span>
+    </div>
+    <div class="item-body">
+      <p>A landmark registry where products are grouped under a canonical venue — "Sagrada Família", "Park Güell", "Louvre". Expected: <code>GET /attractions/pois/</code> returning venues with linked products, and the ability to query <code>GET /attractions/products/?poi_id=...</code>. Currently there is no venue concept — the same monument appears as 324 separate products with no grouping.</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">R-03</span>
+      <span class="item-title">Category filtering on search</span>
+      <span class="badge high">Missing</span>
+    </div>
+    <div class="item-body">
+      <p>Expected: <code>GET /attractions/products/?category_id=12</code> returns only products in that category. The 33 categories exist and products are tagged — but category is not an accepted filter on the search endpoint. Every consumer has to maintain their own keyword workarounds to approximate this.</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">R-04</span>
+      <span class="item-title">Functional result ordering</span>
+      <span class="badge high">Missing</span>
+    </div>
+    <div class="item-body">
+      <p>Expected: <code>?ordering=rating</code>, <code>?ordering=price</code>, <code>?ordering=-price</code> return results sorted accordingly. All ordering parameters are currently accepted but silently ignored — results always return in supplier ingestion order.</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">R-05</span>
+      <span class="item-title">Deduplication — one canonical result per attraction</span>
+      <span class="badge high">Missing</span>
+    </div>
+    <div class="item-body">
+      <p>Expected: a <code>main_product</code> flag or <code>canonical_group_id</code> on each product so consumers can show one result per real-world attraction and let the user choose which supplier to book through. Currently 324 variants of Sagrada Família appear as separate results with no grouping signal.</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">R-06</span>
+      <span class="item-title">Geo / proximity search</span>
+      <span class="badge medium">Missing</span>
+    </div>
+    <div class="item-body">
+      <p>Expected: <code>GET /attractions/products/?lat=41.4&lng=2.17&radius_km=1</code> returning activities near a location. Every product already has <code>geolocation</code>. The bounding box params (<code>lat_min</code>, <code>lat_max</code>, etc.) are accepted but have no effect.</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">R-07</span>
+      <span class="item-title">Special character / accented text search</span>
+      <span class="badge high">Missing</span>
+    </div>
+    <div class="item-body">
+      <p>Expected: "Güell", "Sagrada Família", and "batlló" return the same results as their plain-text equivalents. Currently any accented or special character input returns zero results with no error — a silent failure.</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">R-08</span>
+      <span class="item-title">Consistent availability response for open-voucher (BSN) products</span>
+      <span class="badge medium">Missing</span>
+    </div>
+    <div class="item-body">
+      <p>Expected: BSN products return <code>{ type: "BSN", slots: [] }</code> from the availability endpoint — not a 400 or 404. <code>availability_type</code> is already in the search response; the availability endpoint should honour it.</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">R-09</span>
+      <span class="item-title">City autocomplete</span>
+      <span class="badge medium">Missing</span>
+    </div>
+    <div class="item-body">
+      <p>Expected: <code>GET /attractions/cities/?q=bar</code> returns prefix-matched cities. The current endpoint returns the full unfiltered list — not usable for a type-ahead input.</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">R-10</span>
+      <span class="item-title">Pagination correctness and stable ordering</span>
+      <span class="badge high">Bug</span>
+    </div>
+    <div class="item-body">
+      <p>Expected: page 1 and page 2 return different products. Currently 50% of results are duplicated across pages. Any "load more" feature immediately shows repeated products.</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">R-11</span>
+      <span class="item-title">Booking flow — documented payload + sandbox stability</span>
+      <span class="badge high">Bug</span>
+    </div>
+    <div class="item-body">
+      <p>Expected: the customer-info step documents its accepted field names, and creating an order in sandbox does not fail with an ORM ambiguity error. These two issues block end-to-end booking testing entirely.</p>
+    </div>
+  </div>
+
+</div>
+
+
+<hr>
+
+<!-- ══════ 7. BOOKING FLOW ══════ -->
+<div class="section">
+  <div class="section-title">8 — Booking Flow — Cart API</div>
+
+  <div class="callout amber">
+    <strong>Note:</strong> Some of the issues below may be specific to the sandbox environment and may not reflect production behaviour. We were unable to verify because the sandbox blocks end-to-end booking testing. Items marked <span class="badge medium" style="vertical-align:middle;">Sandbox?</span> are suspected sandbox-only; items marked <span class="badge high" style="vertical-align:middle;">Confirmed</span> were reproducible across multiple sessions.
+  </div>
+
+  <div class="item" style="margin-top:20px;">
+    <div class="item-header">
+      <span class="item-id">E-01</span>
+      <span class="item-title">Cart UUID in request body is silently ignored — creates a new cart instead</span>
+      <span class="badge high">Confirmed</span>
+    </div>
+    <div class="item-body">
+      <p>Adding an item to a cart requires the cart UUID in the <strong>URL path</strong> (<code>POST /cart/{cart_uuid}/items/</code>), not the request body. Passing it in the body is silently treated as a new cart creation — the caller receives a different <code>cart_uuid</code> with no error. This is not documented.</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">E-02</span>
+      <span class="item-title">Step order is product-specific and not documented — must be inferred from required-fields</span>
+      <span class="badge high">Confirmed</span>
+    </div>
+    <div class="item-body">
+      <p><code>GET /items/{item_uuid}/required-fields/</code> returns both which steps are needed and the order they must be called. Calling steps out of sequence returns a 422. This pattern works well but is entirely undocumented — we discovered it empirically after repeated failures.</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">E-03</span>
+      <span class="item-title">GET /tickets returns <code>ticket_types</code> — PATCH /tickets expects <code>tickets</code></span>
+      <span class="badge high">Confirmed</span>
+    </div>
+    <div class="item-body">
+      <p>The response key and the request key use different names for the same concept. A consistent field name across both directions would make this step straightforward to implement.</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">E-04</span>
+      <span class="item-title">Customer-info step returns 422 — expected payload not documented</span>
+      <span class="badge medium">Sandbox?</span>
+    </div>
+    <div class="item-body">
+      <p><code>PATCH /cart/{uuid}/customer-info/</code> with <code>{ first_name, last_name, email, phone }</code> returns <code>422 Invalid request</code> consistently. We could not determine the correct field names or whether ticket selection must be completed first. This may be a sandbox limitation or a documentation gap — either way it blocks step 9 entirely.</p>
+    </div>
+  </div>
+
+  <div class="item">
+    <div class="item-header">
+      <span class="item-id">E-05</span>
+      <span class="item-title">Create order returns "get() returned more than one Cart"</span>
+      <span class="badge medium">Sandbox?</span>
+    </div>
+    <div class="item-body">
+      <p><code>POST /attractions/booking/orders/</code> fails with an internal error indicating the cart lookup is returning multiple rows. Likely caused by multiple test carts created under the same sandbox consumer credentials — a sandbox data isolation issue rather than a real API bug.</p>
+    </div>
+  </div>
+
+  <div class="callout green" style="margin-top:4px;">
+    <strong>Steps 1–8 confirmed working:</strong> cart creation, add item, required-fields, date selection, option selection, time slot, ticket quantities, language selection. The cart flow design is solid — the blockers are in the final steps and appear to be partly sandbox-related.
+  </div>
+</div>
+
+</body>
+</html>

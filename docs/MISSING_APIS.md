@@ -1,7 +1,50 @@
 # Trip Planner — Missing APIs & Data Gaps
 
 > Source of truth: `backend` repo (Django REST API at `api.dev.bridgify.io`) and `etl-pipeline` repo.
-> Last updated: 2026-05-20
+> Last updated: 2026-05-25
+
+---
+
+## Terminology Used in This Document
+
+| Label | Meaning |
+|-------|---------|
+| **Implementation Gap** | Feature was built and the infrastructure exists, but the wiring is incomplete or broken. Fix is purely in our codebase — no new design needed. |
+| **New Feature** | Not yet built. Requires design, new routes, or new UI. |
+| **Bridgify Gap** | Bridgify API limitation we cannot fix ourselves — only TOS Hub solves it. |
+
+---
+
+## Implementation Gaps — Built But Not Wired ⚠️
+
+These are bugs in our own implementation, not missing features. The DB tables, routes, and context all exist — the connections between them are incomplete.
+
+### IG1. Trip Sync Is One-Time Only ✅ FIXED 2026-05-25
+
+**Was broken:** `POST /api/trips` used `ON CONFLICT DO NOTHING` with no unique constraint on `(user_id, local_id)`, so the INSERT always created new rows — duplicate trips accumulating on every save. Subsequent saves after the first were effectively silently duplicating data.
+
+**Fix applied:**
+- Migration `002_add_trips_unique_constraint.sql`: adds `UNIQUE (user_id, local_id)` after deduplicating existing rows
+- `POST /api/trips` now uses `ON CONFLICT (user_id, local_id) DO UPDATE SET ...` — a proper upsert that replaces the trip and all its legs/activities on every save
+- `GET /api/trips` now returns full trip data (legs + days + activities reconstructed) so TripContext can hydrate from DB
+
+### IG2. TripContext Never Reads from DB ✅ FIXED 2026-05-25
+
+**Was broken:** On every page load, `TripContext` read from `localStorage` regardless of whether the user was logged in. DB-saved trips were invisible on other devices or after clearing the browser.
+
+**Fix applied:** `TripContext` now imports `useAuth`. When a logged-in user is detected and their trips exist in the DB, those trips replace the `localStorage` state and re-sync `localStorage`. DB is the source of truth for logged-in users; `localStorage` is the source of truth for guests.
+
+### IG3. No Continuous Sync After Mutations ✅ FIXED 2026-05-25
+
+**Was broken:** Every TripContext mutation (`addServiceToLeg`, `removeActivity`, `moveActivity`, etc.) wrote to `localStorage` only. A user who added activities after the initial save and then opened a second device would see the pre-activity state.
+
+**Fix applied:** TripContext now auto-saves to `POST /api/trips` with a 2-second debounce whenever trips change and a user is logged in. Every mutation that hits `localStorage` also hits the DB within 2 seconds.
+
+### IG4. PUT /api/trips/[id] Only Updates Name + Destination (LOW)
+
+The `PUT /api/trips/[id]` route updates only `name` and `destination`. It cannot sync legs or activities. This is now largely superseded by the full-upsert `POST /api/trips` (IG1 fix), but the PUT route should be removed or widened to avoid confusion.
+
+- **Action:** [ ] Remove `PUT /api/trips/[id]` or replace with a full trip replace that calls the same upsert logic as POST.
 
 ---
 
@@ -694,16 +737,11 @@ The product detail endpoint (`GET /attractions/products/{id}/`) returns much ric
 
 **What's missing**: A dedicated detail fetch when the `ServiceDetailsSidebar` opens, wiring the full `additional_info` payload to the UI.
 
-### G3 — No Real Trip Sync (MEDIUM)
+### G3 — No Real Trip Sync ✅ FIXED 2026-05-25 (see IG1–IG3 above)
 
-The DB schema (`trip_planner.trips`, `trip_legs`, `activities`) is built and `POST /api/trips` saves a snapshot. But:
+The DB schema, routes, and context wiring are now fully connected. TripContext loads from DB on login and auto-saves on every mutation (2s debounce). See Implementation Gaps section for full detail.
 
-- Trip edits (adding/removing activities, reordering days, editing leg dates) are **not synced back** to the DB — only the initial save goes through
-- On refresh, trips still load from `localStorage`, not from the DB
-- Two editors editing the same shared trip will silently overwrite each other (last write wins)
-- No conflict detection, no optimistic locking, no merge strategy
-
-**The right fix**: Make `TripContext` the source of truth from the DB (not localStorage) when logged in. Every mutation calls the API. Requires a full refactor of `TripContext`.
+**Remaining:** Two editors editing the same shared trip will still overwrite each other (last write wins). No conflict detection or merge strategy. This is a new feature (G4 real-time collaboration) not an implementation gap.
 
 ### G4 — Real-Time Collaboration Is Stateless (MEDIUM)
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
 import { ServiceCard } from '@/components/demo/ServiceCard';
@@ -10,8 +10,10 @@ import { bridgifyToAttraction } from '@/lib/bridgify-adapter';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, MapPin, AlertCircle, RefreshCw } from 'lucide-react';
+import { Search, MapPin, AlertCircle, RefreshCw, ChevronDown } from 'lucide-react';
 import type { Attraction } from '@/types/services';
+
+const PAGE_SIZE = 30;
 
 export default function MarketplacePage() {
   const searchParams = useSearchParams();
@@ -21,13 +23,44 @@ export default function MarketplacePage() {
   const [searchText, setSearchText] = useState(initialCategory || 'tours');
   const [cityName, setCityName] = useState(initialCity);
   const [submitted, setSubmitted] = useState({ text: initialCategory || 'tours', city: initialCity });
+  const [page, setPage] = useState(1);
+  const [allAttractions, setAllAttractions] = useState<Attraction[]>([]);
+  const prevSubmitted = useRef(submitted);
 
   const { data, error, isLoading, mutate } = useBridgifySearch({
     textSearch: submitted.text,
     cityName: submitted.city,
+    page,
+    pageSize: PAGE_SIZE,
   });
 
-  const attractions: Attraction[] = (data?.attractions ?? []).map(bridgifyToAttraction);
+  // Reset when search changes
+  useEffect(() => {
+    if (submitted !== prevSubmitted.current) {
+      prevSubmitted.current = submitted;
+      setPage(1);
+      setAllAttractions([]);
+    }
+  }, [submitted]);
+
+  // Accumulate results across pages
+  useEffect(() => {
+    if (!data?.attractions) return;
+    const incoming = data.attractions.map(bridgifyToAttraction);
+    if (page === 1) {
+      setAllAttractions(incoming);
+    } else {
+      setAllAttractions(prev => {
+        const existingIds = new Set(prev.map(a => a.id));
+        return [...prev, ...incoming.filter(a => !existingIds.has(a.id))];
+      });
+    }
+  }, [data, page]);
+
+  const totalCount = data?.count ?? 0;
+  const hasMore = allAttractions.length > 0 && allAttractions.length < totalCount;
+  const isInitialLoad = isLoading && page === 1;
+  const isLoadingMore = isLoading && page > 1;
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,13 +122,13 @@ export default function MarketplacePage() {
       </form>
 
       {/* Results */}
-      {isLoading ? (
+      {isInitialLoad ? (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <CardSkeleton key={i} />
           ))}
         </div>
-      ) : error ? (
+      ) : error && allAttractions.length === 0 ? (
         <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-6 flex items-center gap-4">
           <AlertCircle className="h-5 w-5 text-destructive shrink-0" />
           <p className="text-sm text-destructive flex-1">Could not load experiences</p>
@@ -103,13 +136,13 @@ export default function MarketplacePage() {
             <RefreshCw className="h-4 w-4" /> Retry
           </Button>
         </div>
-      ) : attractions.length > 0 ? (
-        <>
+      ) : allAttractions.length > 0 ? (
+        <div className="space-y-6">
           <p className="text-sm text-muted-foreground">
-            {attractions.length} experience{attractions.length !== 1 ? 's' : ''} found
+            Showing {allAttractions.length} of {totalCount} experience{totalCount !== 1 ? 's' : ''} found
           </p>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {attractions.map(attraction => (
+            {allAttractions.map(attraction => (
               <ServiceCard
                 key={attraction.id}
                 service={attraction}
@@ -118,7 +151,25 @@ export default function MarketplacePage() {
               />
             ))}
           </div>
-        </>
+
+          {hasMore && (
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setPage(p => p + 1)}
+                disabled={isLoadingMore}
+                className="gap-2 min-w-40"
+              >
+                {isLoadingMore ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+                {isLoadingMore ? 'Loading...' : 'Load more'}
+              </Button>
+            </div>
+          )}
+        </div>
       ) : (
         <div className="rounded-xl border bg-muted/30 p-12 text-center space-y-3">
           <p className="text-muted-foreground text-lg">No experiences found</p>

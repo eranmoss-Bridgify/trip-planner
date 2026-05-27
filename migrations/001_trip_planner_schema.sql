@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS trip_planner.otp_tokens (
 CREATE TABLE IF NOT EXISTS trip_planner.sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES trip_planner.users(id) ON DELETE CASCADE,
-    token VARCHAR(64) UNIQUE NOT NULL,
+    token TEXT UNIQUE NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS trip_planner.trips (
     passengers JSONB,
     start_date DATE,
     end_date DATE,
+    share_token VARCHAR(64) UNIQUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -52,6 +53,15 @@ CREATE TABLE IF NOT EXISTS trip_planner.trip_legs (
     start_date DATE,
     end_date DATE,
     sort_order INTEGER DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS trip_planner.trip_members (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    trip_id UUID REFERENCES trip_planner.trips(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES trip_planner.users(id) ON DELETE CASCADE,
+    role VARCHAR(20) NOT NULL DEFAULT 'editor',
+    joined_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (trip_id, user_id)
 );
 
 CREATE TABLE IF NOT EXISTS trip_planner.activities (

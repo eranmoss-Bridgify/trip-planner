@@ -26,11 +26,15 @@ export function TripCard({ trip }: TripCardProps) {
     return (
         <Card className="overflow-hidden hover:shadow-lg transition-shadow border-muted group cursor-pointer">
             <div className="h-40 bg-muted/50 relative overflow-hidden">
-                <img
-                    src={trip.image}
-                    alt={trip.name}
-                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                />
+                {trip.image ? (
+                    <img
+                        src={trip.image}
+                        alt={trip.name}
+                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                    />
+                ) : (
+                    <div className="w-full h-full bg-linear-to-br from-primary/30 to-primary/10" />
+                )}
                 <div className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent" />
                 <div className="absolute bottom-4 left-4 text-white">
                     <h3 className="font-bold text-lg">{trip.name}</h3>

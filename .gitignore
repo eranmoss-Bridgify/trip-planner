@@ -42,3 +42,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# django-api
+django-api/venv/
+django-api/.env
+django-api/**/__pycache__/
+django-api/**/*.pyc
