@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useMemo, useState } from 'react';
-import { dateFnsLocalizer } from 'react-big-calendar';
+import { dateFnsLocalizer, type CalendarProps } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay, addHours } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import type { Trip } from '@/lib/mock-data';
@@ -12,7 +12,7 @@ import { CalendarDays, Clock, ExternalLink, Loader2, Star, X } from 'lucide-reac
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 
 const Calendar = dynamic(
-    () => import('react-big-calendar').then(m => m.Calendar),
+    () => import('react-big-calendar').then(m => m.Calendar as React.ComponentType<CalendarProps<CalEvent>>),
     { ssr: false, loading: () => <div className="flex items-center justify-center h-full text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin" /></div> }
 );
 

@@ -126,6 +126,7 @@ interface Proposal {
     type: 'add' | 'remove';
     activity?: {
         id: string;
+        uuid?: string;
         name: string;
         category?: string;
         price?: number;

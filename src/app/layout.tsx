@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppToolbar } from "@/components/layout/AppToolbar";
@@ -32,7 +33,10 @@ export default function RootLayout({
       >
         <AuthProvider>
           <TripProvider>
-            <AppToolbar />
+            {/* AppToolbar uses useSearchParams() — Suspense keeps static prerendering working */}
+            <Suspense fallback={null}>
+              <AppToolbar />
+            </Suspense>
             <main className="flex-1">
               {children}
             </main>

@@ -45,7 +45,7 @@ export function ServiceDetailsSidebar({ service, type, isOpen, onClose, tripId, 
 
     // Returns the leg whose location best matches the attraction's location string.
     // e.g. attraction.location="Barcelona, Spain" matches leg.location="Barcelona"
-    function findMatchingLeg(legs: typeof mktTrip.legs, attractionLocation: string): string | null {
+    function findMatchingLeg(legs: NonNullable<typeof mktTrip>['legs'], attractionLocation: string): string | null {
         if (!legs?.length || !attractionLocation) return null;
         const haystack = attractionLocation.toLowerCase();
         // Exact or substring match first

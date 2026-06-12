@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
 import { ServiceCard } from '@/components/demo/ServiceCard';
@@ -15,7 +15,16 @@ import type { Attraction } from '@/types/services';
 
 const PAGE_SIZE = 30;
 
+// useSearchParams() requires a Suspense boundary for prerendering (same pattern as HomePage)
 export default function MarketplacePage() {
+  return (
+    <Suspense fallback={null}>
+      <MarketplaceContent />
+    </Suspense>
+  );
+}
+
+function MarketplaceContent() {
   const searchParams = useSearchParams();
   const initialCity = searchParams.get('city') || 'Barcelona';
   const initialCategory = searchParams.get('category') || '';
